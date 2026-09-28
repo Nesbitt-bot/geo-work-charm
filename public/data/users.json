@@ -1,0 +1,26 @@
+[
+  {
+    "code": "DEMO001",
+    "name": "Beijing · North studio",
+    "lat": 39.984,
+    "lng": 116.307,
+    "enter": 80,
+    "exit": 120
+  },
+  {
+    "code": "DEMO002",
+    "name": "Shanghai · River studio",
+    "lat": 31.2304,
+    "lng": 121.4737,
+    "enter": 80,
+    "exit": 120
+  },
+  {
+    "code": "DEMO003",
+    "name": "Shenzhen · Garden studio",
+    "lat": 22.5431,
+    "lng": 114.0579,
+    "enter": 80,
+    "exit": 120
+  }
+]
