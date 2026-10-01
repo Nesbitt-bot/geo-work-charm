@@ -1,6 +1,6 @@
 # Geo Work Charm
 
-A local-first, map-oriented workday ritual. A quiet screen while working; a small, 3.2-second clock-out charm after a confirmed departure. **Demo only: fictional workplaces and neighbors.** No backend, accounts, database, analytics, or copied third-party application code.
+A browser-local workplace map and clock-out widget. Production uses actual browser GPS; Test uses a customizable simulated position. Search and chosen-address history use OpenStreetMap data. No backend, accounts, server database, or analytics.
 
 ## Quickstart
 
@@ -17,14 +17,36 @@ npm run build
 npm run preview
 ```
 
-No API key is needed. Click **Use simulated location**, or enable real location on HTTPS / localhost. Denied/unavailable geolocation never silently becomes simulated location.
+No API key is needed. Location is requested immediately on page load, even before a workplace is selected. Browser permission is required on HTTPS / localhost. Denied GPS stays unavailable in Production; it never silently becomes simulated. Settings includes a permission retry button.
 
 Routes (hash routing works on static hosting):
-- `/` — neighborhood dashboard, demo workplace selector, current status and accuracy
-- `/#/debug` — mock distance/accuracy and complete departure sequence
-- `/#/widget?code=DEMO001` — full-viewport standalone charm, no development controls
+- `/` or `/#/production` — search, distance, street map and widget preview using browser GPS
+- `/#/test` — the same UI with a distance slider, clickable map and draggable Test location
+- `/#/settings` — coordinates, accuracy, geofence radii, map/search network options, offline maps and diagnostics
+- `/#/widget/production` — fullscreen widget using browser GPS
+- `/#/widget/test` — fullscreen widget using saved Test settings
 
-Open a widget tab then use the debug tab: simulation settings synchronize through localStorage. Each tab independently confirms samples. Codes DEMO001 / DEMO002 / DEMO003 correspond to fictional Beijing / Shanghai / Shenzhen studios. These public codes are not passwords or identities.
+Navigation contains only **Production**, **Test**, and **Settings**. The preview's ⛶ icon opens its mode's widget; both widget links also appear in Settings. Legacy `/#/debug` remains a Test alias.
+
+Choose an address, open a Test widget tab, then click the Test map, drag its marker, or change the distance slider. Simulation settings synchronize through localStorage. Production always uses browser GPS and ignores saved Test coordinates. Opening Settings from Test preserves the Test feed. Fullscreen widgets remain neutral until a reliable position and workplace are available.
+
+The minimal main screen contains search, distance, map, and a widget preview. Address suggestions appear after 600 ms of typing, with Chinese IME handling, cancellation, arrow keys, Enter selection and Escape dismissal. Only selected addresses enter history; the latest choice becomes the next default. Online search/map controls are in Settings and default enabled.
+
+Chinese POIs may be indexed without the city prefix or with middle-dot separators. The search normalizes punctuation, retries the POI without a city prefix or area suffix when necessary, and ranks matching area letters first. The live test `长沙万达总部国际 C区` finds OSM's `万达·总部国际·C区` at WGS84 latitude **28.2054614**, longitude **112.965934**, ahead of B区 alternatives. This address is a verification case, not hardcoded app data. OSM coverage still limits autocomplete; this is not Google's address database.
+
+## Keyless and offline operation
+
+The dashboard defaults to online OpenStreetMap.de street tiles and Photon suggestions, with no AMap credentials. Until the first address is chosen it shows a world map, rather than assuming a workplace. Leaflet also renders saved OSM roads, paths, building outlines and available names offline. Three legacy neighborhood extracts remain bundled (1,462 features, about 370 KB uncompressed); they are map coverage, not selectable preset addresses. Labels avoid overlaps. Dragging, wheel/pinch/double-click/button zoom, keyboard navigation and a distance scale need no WebGL.
+
+The first sample fits the workplace and position together. Later samples retain your pan/zoom. Production labels browser GPS as You; Test labels simulation as Test. Click the Test map or drag the Test marker to customize its position. The distance slider returns to distance-based simulation. Exact Test coordinates and accuracy are edited in Settings.
+
+Settings → Save workplace map offline retrieves a bounded OSM extract around the chosen workplace through Overpass and saves up to three regional maps. Coverage is roughly 0.008 degrees across. The public server can time out; failures preserve saved data. Settings → Online street map controls keyless OpenStreetMap.de tiles, which are not bulk-downloaded or cached.
+
+The production build includes a service worker that downloads the app HTML, JavaScript, CSS, and bundled street data on the first successful visit. Wait for **Offline app ready** in Settings, then reload Production, Test, and widget hash routes without a connection. This requires HTTPS or localhost, supported service workers, and retained browser storage. Development mode does not install the worker. Browser cache eviction or clearing site data requires another online visit. Updates install in the background and become active after all tabs using the old version close.
+
+Arbitrary worldwide street-address search cannot run offline without a local address dataset. Selected-address history covers only chosen workplaces; no bundled city list supplies suggestions. Comprehensive offline address datasets and worldwide street maps are much larger. Offline street rendering covers bundled/downloaded neighborhoods only; areas beyond those extracts need another download. Missing building names or paths reflect OSM coverage, not invented geography.
+
+Keyless online options include [Photon](https://photon.komoot.io/) for worldwide OSM address search, [Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API) for bounded map-data extracts, and [Nominatim](https://nominatim.org/) for explicit OSM searches (its public endpoint has a [usage policy](https://operations.osmfoundation.org/policies/nominatim/), including no client autocomplete). Public availability, coverage and limits vary. This app uses Photon for debounced suggestions and submitted searches, Overpass on explicit area download, and [OpenStreetMap.de](https://www.openstreetmap.de/) tiles by default. Provider/source attribution remains visible on the map.
 
 ## Live demo and screenshots
 
@@ -35,21 +57,29 @@ Screenshot placeholders: desktop neighborhood, mobile dashboard, standalone work
 ## Architecture
 
 ```text
-public/data/users.json      Public fictional workplace configurations
 src/core/geofence.ts        Pure Turf circle classifier + confirmation reducer
 src/core/*.test.ts          Boundary, invalid input, hysteresis, coordinate/data tests
 src/location/types.ts      WGS84 provider contract
-src/location/providers.ts  AMap → browser fallback; manual simulation only
-src/location/amap.ts       Shared optional JS 2.0 loader
+src/location/providers.ts  Browser location; legacy AMap adapter remains unused
+src/location/amap.ts       Legacy JS 2.0 loader (not used by default app)
+src/location/geocode.ts    OSM suggestions, Chinese query handling, selected-address history
 src/geo/coordinates.ts      WGS84 ↔ GCJ-02 approximation
-src/geo/nearby.ts           Seeded fictional people + simulated sample
+src/geo/streets.ts          OSM geometry conversion, local packs, bounded downloads
+src/geo/data/*.json         Real offline demo-neighborhood street/building extracts
+src/geo/data/NOTICE.md      OSM attribution and ODbL database license notice
+scripts/download-streets.mjs  Reproduce/update the shipped OSM extracts
+src/geo/nearby.ts           Distance-based Test position generation
 src/store.ts               State lifecycle, persistence and cross-tab settings
-src/components/Map.tsx     Schematic overview + local inset / optional AMap
+src/components/Map.tsx     Minimal Leaflet map + draggable Test location
+src/components/WorkplaceSearch.tsx  Minimal address search and suggestions
+src/components/Settings.tsx  Accuracy, geofence, Test coordinates, networking, offline maps
+offline-plugin.ts          Build-time versioned app-shell service worker
+src/offline.ts             Base-aware service worker registration
 src/animations/index.tsx   Replaceable animation registry
-src/App.tsx                Hash routes, dashboard, widget, debug lab
+src/App.tsx                Production, Test, Settings and fullscreen widget routes
 ```
 
-The map uses an SVG/grid schematic by default: a 5 km circle around the current sample (workplace anchor before location), thirty clickable fictional neighbors, workplace and self markers, plus an inset that makes the tiny 80/120 m fence visible. The grid and decorative river are not real geography. Far-away workplaces may be outside the overview; their local inset remains visible. Neighbors are seeded by the local calendar date and rounded anchor coordinate; positions are generated with Turf inside 5 km of that anchor. Arrival times span 08:30–10:30; departure times span 17:00–20:30 in the viewer's local time. Status is schedule-derived, not surveillance. Changing day/anchor on a refreshed map generates another reproducible dataset.
+The map shows workplace entry/exit rings, location and accuracy. It retains pan/zoom across position updates. The UI omits fictional neighbor dots and explanatory legends to keep the main screens focused on search and distance.
 
 ## Geofence semantics
 
@@ -66,22 +96,13 @@ The map uses an SVG/grid schematic by default: a 5 km circle around the current 
 
 ## Location, China and coordinate systems
 
-All domain/provider samples use WGS84 latitude/longitude, accuracy in meters and epoch-millisecond timestamp. Browser geolocation requests high accuracy, zero cached age and a timeout. When AMap is configured it is attempted first, then browser geolocation after a failure/timeout. The user must explicitly select simulation if real location is unavailable. Watches, timers and late callbacks are cleaned up/ignored when switching providers or users.
+All domain/provider samples use WGS84 latitude/longitude, accuracy in meters and epoch-millisecond timestamp. Browser geolocation requests high accuracy, zero cached age and a timeout. The active app uses browser geolocation directly, even if old AMap environment values remain present. The user must explicitly select simulation if real location is unavailable. Watches, timers and late callbacks are cleaned up/ignored when switching providers or users. GPS availability and the browser/OS positioning provider's own network requirements remain device-dependent.
 
-AMap `Geolocation` uses `convert:true`, returning GCJ-02 positions that are approximately inverted to WGS84 before evaluation. WGS84 positions are converted to GCJ-02 for AMap display. The included iterative conversion is a common mathematical approximation, not survey-grade or a guarantee about every provider/device's coordinate behavior. Outside the broad mainland-China bounding box conversion is identity; borders and special regions need production validation. Browser positioning can vary by operating system and provider, especially in China; verify its datum rather than applying a second conversion blindly. No BD-09 support.
+The unused legacy AMap adapter uses `convert:true`, returning GCJ-02 positions that are approximately inverted to WGS84. The included iterative conversion is a common mathematical approximation, not survey-grade or a guarantee about every provider/device's coordinate behavior. Outside the broad mainland-China bounding box conversion is identity; borders and special regions need production validation. Browser positioning can vary by operating system and provider, especially in China; verify its datum rather than applying a second conversion blindly. Offline coordinate entry and Photon/OSM use WGS84. No BD-09 support.
 
-## Optional AMap JS 2.0
+## AMap and GitHub Pages
 
-Copy `.env.example` to `.env.local` and set both:
-
-```dotenv
-VITE_AMAP_KEY=your_web_js_key
-VITE_AMAP_SECURITY_CODE=your_demo_security_code
-```
-
-Restart Vite. Use the vendor's proper origin/domain restrictions. The shared loader is used by both map and positioning adapters. If loading/rendering fails, the schematic remains available; geolocation falls back to browser rather than fabricated positions. AMap was not live-tested without credentials.
-
-**Every `VITE_*` value is exposed in the frontend bundle.** The security code in this demo is not a secret-storage mechanism. For production, follow AMap's security proxy/service-host configuration and use an appropriate server-side proxy. Map/positioning SDKs transmit network requests to third parties and may have independent logging, licensing, attribution and regulatory requirements. The no-key schematic does not load them. No remote fonts are used.
+The changing IP of GitHub Pages is not the primary issue for browser maps: server-side Web Service keys and browser JavaScript SDK keys have different security models. Browser keys generally use origin/domain restrictions, while IP allowlists apply to server requests. AMap still requires credentials and network access, and its recommended security proxy conflicts with a strictly backend-free design. The app therefore no longer automatically loads AMap; the legacy adapter files remain available for future integrations. Old `.env.local` AMap values do not enable it. **Every `VITE_*` value used by frontend code is public**, so do not place server secrets there.
 
 ## Deploy to GitHub Pages (no keys)
 
@@ -90,13 +111,13 @@ Restart Vite. Use the vendor's proper origin/domain restrictions. The shared loa
 3. Push `main` or run the included workflow manually.
 4. The workflow runs `npm ci`, lint, typecheck, tests and production build, uploads `dist`, then deploys with a `github-pages` environment, Pages/OIDC permissions and concurrency protection.
 5. It sets `VITE_BASE_PATH=/<repository-name>/`. For a root user/organization Pages repository, change that value to `/`. Default local/static builds use relative `./`.
-6. Optional AMap values can be set as repository Actions variables, understanding they are public bundle values.
+6. No API variables or backend configuration are required. The build emits `sw.js` alongside the app and scopes its cache to this repository path.
 
-Asset links and the public JSON fetch respect Vite's base. Hash routes do not need a server rewrite or 404 workaround.
+Asset links and service worker registration respect Vite's base. Workplace selection comes from browser history, so offline startup does not depend on a preset JSON fetch. Hash routes do not need a server rewrite or 404 workaround.
 
 ## Privacy and persistence
 
-Only selected demo code, provider preference, mock distance/accuracy and per-code/per-source stable state are in localStorage. **No real GPS coordinates, raw samples, timestamps or trajectory are persisted.** Current location exists in tab memory only. Clearing this site's storage resets preferences/stable state. There is no upload API and no analytics. Optional third-party maps/positioning still produce external requests; “local” does not mean those vendors are offline. A previously chosen real provider is remembered and may resume on reload subject to browser permissions.
+Settings, your chosen custom workplace, provider preference, simulation values, per-workplace/per-source stable state, up to 80 chosen addresses and up to three downloaded map extracts live in localStorage. App assets and bundled maps live in Cache Storage. Suggestion responses have a separate five-minute session cache for repeated queries; they never become default workplaces. **No raw GPS samples, timestamps, trajectory, or location history are persisted.** Explicitly choosing your current location as a workplace saves that single coordinate by request. Selected results and map pins save workplace coordinates and selected search text. Downloaded street extracts record the requested area, not a movement history. Clearing this site's storage resets these records and removes its offline copy. There is no upload API or analytics. Photon receives typed/submitted search text; Overpass receives explicitly requested bounds; online OpenStreetMap.de tiles receive tile requests. Map tiles and address suggestions default online; turn them off to work with saved data. A remembered real-location provider may resume on reload subject to browser permission.
 
 ## Limitations and future backend path
 
@@ -109,7 +130,8 @@ For a future service: introduce explicit consent, real authentication, private w
 Original application code and SVG/CSS artwork, released under [MIT](LICENSE). Libraries keep their respective licenses.
 
 - [Turf](https://turfjs.org/) — geospatial functions
-- [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) — possible future renderer, not bundled
+- [Leaflet](https://leafletjs.com/) — SVG street geometry and interactive map controls
+- [OpenStreetMap](https://www.openstreetmap.org/copyright) — street/building data under ODbL; see [data notice](src/geo/data/NOTICE.md)
 - [AMap JS API](https://lbs.amap.com/api/javascript-api-v2/summary)
 - [jonnyhuck](https://github.com/jonnyhuck) — geospatial ecosystem reference
 - [naranyala](https://github.com/naranyala) — attendance-demo ecosystem reference
@@ -119,4 +141,8 @@ These references are reading pointers, not claims of affiliation, compatibility 
 
 ## Verification record
 
-Validated with Node 24: clean `npm ci --include=dev`, ESLint, TypeScript, 24 passing Vitest tests, production build with `/geo-work-charm/` base, and static asset/public JSON smoke check. `npm audit --include=dev` reported zero vulnerabilities at implementation time. React + jsdom integration tests exercise clickable neighbors, simulated entry/departure, unreliable-location neutrality, standalone widget routing, cross-tab storage updates, and no replay after reload. A Chromium executable is not installed in this environment, so these are automated DOM integration tests, **not a claimed real-browser visual or live GPS/AMap test**.
+Validated with Node 26: dependency installation, ESLint, TypeScript, 48 passing Vitest tests, and a production build with `/geo-work-charm/` base. Tests cover geofence behavior, debounced suggestions, Chinese IME, keyboard selection, Chinese POI query/ranking, no preset addresses, restoring latest selected history, cancelled requests, real OSM map content, geometry conversion, bounded map download/cache behavior, service worker scope/cache isolation, and static-host `Vary: Origin` compatibility. The test command disables Node's experimental native Web Storage so jsdom supplies browser storage consistently.
+
+Live desktop/mobile verification typed `长沙万达总部国际 C区` without pressing Search, received `万达·总部国际·C区` ahead of B区, selected it, and reloaded with that address as the default. Both search and street tiles were on by default. Only C区 entered history. The mobile layout had no horizontal overflow at 375 px. All displayed suggestions and coordinates came from live Photon/OSM data, not a hardcoded lookup table.
+
+The Codex in-app browser verified visible OSM road/path labels and building outlines from the bundled maps, with Chinese road and building/place names, drag panning, zoom controls and a changing distance scale. The implementation uses SVG cartography rather than inaccessible CARTO tiles. The mobile map retains its 420 px height without horizontal overflow. With the final preview server stopped, the dashboard reloaded from cache with 466 SVG paths and real Chinese road/building labels. Build-time OSM extracts were successfully retrieved; the browser's subsequent public Overpass download returned HTTP 504, and the UI preserved the bundled map and reported the failure. The browser verified actual online street imagery and Chinese labels from OpenStreetMap.de; this replaces the inaccessible CARTO/OSM.org hosts and the Esri placeholder tiles in this part of China. Real GPS and AMap were not live-tested.

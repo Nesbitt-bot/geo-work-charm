@@ -5,135 +5,319 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { Browser } from "leaflet";
 import App from "./App";
-const users = [
-  {
-    code: "DEMO001",
-    name: "Beijing demo",
-    lat: 39.984,
-    lng: 116.307,
-    enter: 80,
-    exit: 120,
+import { rememberPlace, workplaceFor } from "./location/geocode";
+const office = { name: "万达·总部国际·C区", lat: 28.2054614, lng: 112.965934 };
+let success: PositionCallback;
+let failure: PositionErrorCallback | undefined;
+let count = 0;
+let requestedOptions: PositionOptions | undefined;
+const watch = vi.fn(
+  (
+    next: PositionCallback,
+    error?: PositionErrorCallback,
+    options?: PositionOptions,
+  ) => {
+    success = next;
+    failure = error;
+    requestedOptions = options;
+    return 42;
   },
-];
+);
+const clear = vi.fn();
 beforeEach(() => {
   localStorage.clear();
-  location.hash = "#/debug";
+  sessionStorage.clear();
+  rememberPlace(office);
+  count = 0;
+  Object.defineProperty(Browser, "svg", { value: true, configurable: true });
+  Object.defineProperty(navigator, "geolocation", {
+    value: { watchPosition: watch, clearWatch: clear },
+    configurable: true,
+  });
   vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(users) }),
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
   );
+  watch.mockClear();
+  clear.mockClear();
+  location.hash = "#/production";
 });
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  delete (navigator as unknown as { geolocation?: unknown }).geolocation;
 });
-it("dashboard simulation, accuracy freeze, full departure and widget route smoke", async () => {
-  render(<App />);
-  await screen.findByText("Test the threshold.");
-  expect(screen.getAllByRole("button", { name: /ANON-/ })).toHaveLength(30);
-  fireEvent.click(screen.getByRole("button", { name: "ANON-01" }));
-  expect(screen.getByText("ANON-01 · simulated")).toBeTruthy();
-  vi.useFakeTimers();
-  fireEvent.click(
-    screen.getByRole("button", { name: "Use simulated location" }),
-  );
-  await act(async () => {
-    vi.advanceTimersByTime(2300);
-  });
-  fireEvent.change(screen.getByRole("slider", { name: "Mock distance" }), {
-    target: { value: "40" },
-  });
-  await act(async () => {
-    vi.advanceTimersByTime(2300);
-  });
-  expect(screen.getByText("● WORKING")).toBeTruthy();
-  fireEvent.change(screen.getByRole("slider", { name: "Mock accuracy" }), {
-    target: { value: "200" },
-  });
-  await act(async () => {
-    vi.advanceTimersByTime(2300);
-  });
-  expect(screen.getByText("● UNKNOWN")).toBeTruthy();
-  expect(screen.queryByLabelText("Clocking out")).toBeNull();
-  fireEvent.change(screen.getByRole("slider", { name: "Mock accuracy" }), {
-    target: { value: "15" },
-  });
-  await act(async () => {
-    vi.advanceTimersByTime(2300);
-  });
-  fireEvent.change(screen.getByRole("slider", { name: "Mock distance" }), {
-    target: { value: "180" },
-  });
-  await act(async () => {
-    vi.advanceTimersByTime(2300);
-  });
-  expect(screen.getByLabelText("Clocking out")).toBeTruthy();
-  await act(async () => {
-    vi.advanceTimersByTime(3300);
-  });
-  expect(screen.queryByLabelText("Clocking out")).toBeNull();
-  await act(async () => {
-    location.hash = "#/widget?code=DEMO001";
+const position = (lat = office.lat, lng = office.lng, accuracy = 15) => {
+  success({
+    coords: {
+      latitude: lat,
+      longitude: lng,
+      accuracy,
+      altitude: null,
+      altitudeAccuracy: null,
+      heading: null,
+      speed: null,
+    },
+    timestamp: Date.now() + ++count,
+  } as GeolocationPosition);
+};
+const route = async (hash: string) =>
+  act(async () => {
+    location.hash = hash;
     window.dispatchEvent(new HashChangeEvent("hashchange"));
   });
-  expect(screen.queryByRole("button")).toBeNull();
-  expect(screen.getByText("Make room for life.")).toBeTruthy();
-  cleanup();
+const tick = async (ms = 2300) =>
+  act(async () => {
+    vi.advanceTimersByTime(ms);
+  });
+it("starts browser location before any workplace exists and exposes exactly three navigation links", () => {
+  localStorage.clear();
   render(<App />);
-  await act(async () => {
-    await Promise.resolve();
-    await Promise.resolve();
-  });
-  await act(async () => {
-    vi.advanceTimersByTime(2300);
-  });
-  expect(screen.queryByLabelText("Clocking out")).toBeNull();
+  expect(watch).toHaveBeenCalledOnce();
+  expect(requestedOptions?.enableHighAccuracy).toBe(true);
+  expect(
+    within(screen.getByRole("navigation"))
+      .getAllByRole("link")
+      .map((link) => link.textContent),
+  ).toEqual(["Production", "Test", "Settings"]);
+  expect(
+    screen.getByRole("combobox", { name: "Search your workplace address" }),
+  ).toBeTruthy();
+  expect(screen.queryByRole("checkbox")).toBeNull();
+  expect(screen.queryByRole("slider")).toBeNull();
+  expect(screen.getByLabelText("Distance").textContent).toContain("—");
 });
-
-it("storage events drive an already-open widget and restored working state does not fake a departure", async () => {
-  location.hash = "#/widget?code=DEMO001";
+it("production ignores saved simulation preferences and updates from browser GPS only", async () => {
   localStorage.setItem(
     "gw:settings",
     JSON.stringify({
-      code: "DEMO001",
       provider: "simulation",
-      distance: 200,
-      accuracy: 15,
+      distance: 700,
+      testLocation: { name: "Fake", lat: 0, lng: 0 },
     }),
   );
-  localStorage.setItem(
-    "gw:stable:DEMO001:simulation",
-    JSON.stringify("WORKING"),
-  );
-  vi.useFakeTimers();
   render(<App />);
   await act(async () => {
-    await Promise.resolve();
-    await Promise.resolve();
+    position();
   });
   await act(async () => {
-    vi.advanceTimersByTime(2400);
+    position();
   });
-  expect(screen.queryByLabelText("Clocking out")).toBeNull();
-  expect(screen.getByText("Make room for life.")).toBeTruthy();
+  expect(screen.getByLabelText("Distance").textContent).toContain("0");
+  expect(screen.getByText("Working")).toBeTruthy();
+  expect(screen.queryByRole("slider")).toBeNull();
+  expect(
+    screen
+      .getByRole("link", { name: "Open Production fullscreen widget" })
+      .getAttribute("href"),
+  ).toBe("#/widget/production");
+  await act(async () => {
+    failure?.({
+      message: "Permission denied",
+      code: 1,
+    } as GeolocationPositionError);
+  });
+  expect(screen.getByText("Waiting for location")).toBeTruthy();
+  expect(screen.getByLabelText("Distance").textContent).toContain("—");
+});
+it("test locations override browser GPS and advanced parameters live only in Settings", async () => {
+  vi.useFakeTimers();
+  location.hash = "#/test";
+  render(<App />);
+  await act(async () => {
+    position(0, 0);
+  });
+  await tick();
+  expect(screen.getByLabelText("Distance").textContent).toContain("220");
+  fireEvent.change(screen.getByRole("slider", { name: "Test distance" }), {
+    target: { value: "40" },
+  });
+  await tick();
+  expect(screen.getByText("Working")).toBeTruthy();
+  await route("#/settings");
+  expect(screen.getByRole("slider", { name: "Test accuracy" })).toBeTruthy();
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Test latitude" }), {
+    target: { value: String(office.lat + 0.002) },
+  });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Test longitude" }), {
+    target: { value: String(office.lng) },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Set location" }));
+  await route("#/test");
+  await tick();
+  expect(
+    Number(
+      screen.getByLabelText("Distance").textContent?.replace(/[^\d]/g, ""),
+    ),
+  ).toBeGreaterThan(200);
+  expect(
+    screen
+      .getByRole("link", { name: "Open Test fullscreen widget" })
+      .getAttribute("href"),
+  ).toBe("#/widget/test");
+  await route("#/production");
+  expect(
+    screen.queryByText("Test", { selector: ".location-label" }),
+  ).toBeNull();
+  expect(
+    Number(
+      screen.getByLabelText("Distance").textContent?.replace(/[^\d]/g, ""),
+    ),
+  ).toBeGreaterThan(10000000);
+});
+it("test entry/departure confirmation and unreliable accuracy remain correct after simplifying the UI", async () => {
+  vi.useFakeTimers();
+  location.hash = "#/test";
+  render(<App />);
+  fireEvent.change(screen.getByRole("slider", { name: "Test distance" }), {
+    target: { value: "40" },
+  });
+  await tick();
+  expect(screen.getByText("Working")).toBeTruthy();
+  const stored = JSON.parse(localStorage.getItem("gw:settings")!);
   await act(async () => {
     localStorage.setItem(
       "gw:settings",
-      JSON.stringify({
-        code: "DEMO001",
-        provider: "simulation",
-        distance: 30,
-        accuracy: 15,
-      }),
+      JSON.stringify({ ...stored, accuracy: 200 }),
     );
     window.dispatchEvent(new StorageEvent("storage", { key: "gw:settings" }));
   });
+  await tick();
+  expect(screen.getByText("Waiting for location")).toBeTruthy();
+  expect(screen.queryByLabelText("Clocking out")).toBeNull();
   await act(async () => {
-    vi.advanceTimersByTime(2400);
+    localStorage.setItem(
+      "gw:settings",
+      JSON.stringify({ ...stored, accuracy: 15 }),
+    );
+    window.dispatchEvent(new StorageEvent("storage", { key: "gw:settings" }));
   });
-  expect(screen.getByText("In your own rhythm.")).toBeTruthy();
+  await tick();
+  fireEvent.change(screen.getByRole("slider", { name: "Test distance" }), {
+    target: { value: "180" },
+  });
+  await tick();
+  expect(screen.getByLabelText("Clocking out")).toBeTruthy();
+  await tick(3300);
+  expect(screen.getByText("Off work")).toBeTruthy();
+});
+it("a fullscreen Test widget synchronizes cross-tab settings without replaying departure on reload", async () => {
+  const code = workplaceFor(office).code;
+  localStorage.setItem(
+    "gw:settings",
+    JSON.stringify({ distance: 40, accuracy: 15 }),
+  );
+  location.hash = "#/widget/test";
+  vi.useFakeTimers();
+  render(<App />);
+  await tick();
+  expect(screen.getByLabelText("Test widget")).toBeTruthy();
+  expect(screen.queryByRole("navigation")).toBeNull();
+  expect(screen.getByText("Working")).toBeTruthy();
+  await act(async () => {
+    localStorage.setItem(
+      "gw:settings",
+      JSON.stringify({ distance: 180, accuracy: 15 }),
+    );
+    window.dispatchEvent(new StorageEvent("storage", { key: "gw:settings" }));
+  });
+  await tick();
+  expect(screen.getByLabelText("Clocking out")).toBeTruthy();
+  await tick(3300);
+  cleanup();
+  localStorage.setItem(
+    `gw:stable:${code}:simulation`,
+    JSON.stringify("WORKING"),
+  );
+  render(<App />);
+  await tick();
+  expect(screen.queryByLabelText("Clocking out")).toBeNull();
+  expect(screen.getByText("Off work")).toBeTruthy();
+});
+it("fullscreen Production widgets use GPS even when test state is saved", async () => {
+  localStorage.setItem(
+    "gw:settings",
+    JSON.stringify({
+      distance: 0,
+      accuracy: 15,
+      testLocation: office,
+      provider: "simulation",
+    }),
+  );
+  location.hash = "#/widget/production";
+  render(<App />);
+  await act(async () => {
+    position(office.lat + 0.003);
+  });
+  await act(async () => {
+    position(office.lat + 0.003);
+  });
+  expect(screen.getByLabelText("Production widget")).toBeTruthy();
+  expect(screen.getByText("Off work")).toBeTruthy();
+  expect(screen.queryByRole("navigation")).toBeNull();
+  expect(screen.queryByRole("combobox")).toBeNull();
+});
+it("Settings preserve custom geofence radii after reload", async () => {
+  location.hash = "#/settings";
+  render(<App />);
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Entry radius" }), {
+    target: { value: "30" },
+  });
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Exit radius" }), {
+    target: { value: "70" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save geofence" }));
+  cleanup();
+  render(<App />);
+  expect(
+    (
+      screen.getByRole("spinbutton", {
+        name: "Entry radius",
+      }) as HTMLInputElement
+    ).value,
+  ).toBe("30");
+  expect(
+    (
+      screen.getByRole("spinbutton", {
+        name: "Exit radius",
+      }) as HTMLInputElement
+    ).value,
+  ).toBe("70");
+});
+it("the distance slider reflects a custom Test pin and resets it when moved", async () => {
+  localStorage.setItem(
+    "gw:settings",
+    JSON.stringify({
+      distance: 0,
+      testLocation: {
+        name: "Custom test pin",
+        lat: office.lat + 0.002,
+        lng: office.lng,
+      },
+      accuracy: 15,
+    }),
+  );
+  location.hash = "#/test";
+  vi.useFakeTimers();
+  render(<App />);
+  await tick();
+  const slider = screen.getByRole("slider", {
+    name: "Test distance",
+  }) as HTMLInputElement;
+  expect(Number(slider.value)).toBeGreaterThan(200);
+  fireEvent.change(slider, { target: { value: "0" } });
+  await tick();
+  expect(screen.getByLabelText("Distance").textContent).toBe("0 m");
+  expect(
+    JSON.parse(localStorage.getItem("gw:settings")!).testLocation,
+  ).toBeNull();
 });

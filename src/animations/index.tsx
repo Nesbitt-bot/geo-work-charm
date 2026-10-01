@@ -64,18 +64,11 @@ export function Charm({
           </div>
           <h2>
             {status === "WORKING"
-              ? "In your own rhythm."
+              ? "Working"
               : status === "UNKNOWN"
-                ? "A little uncertain."
-                : "Make room for life."}
+                ? "Waiting for location"
+                : "Off work"}
           </h2>
-          <p>
-            {status === "WORKING"
-              ? "Working · quietly here"
-              : status === "UNKNOWN"
-                ? "Waiting for a reliable location"
-                : "Off work · take the long way home"}
-          </p>
         </div>
       )}
       <time>

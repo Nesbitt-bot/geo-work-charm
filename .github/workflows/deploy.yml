@@ -26,8 +26,6 @@ jobs:
       - run: npm run build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
-          VITE_AMAP_KEY: ${{ vars.VITE_AMAP_KEY }}
-          VITE_AMAP_SECURITY_CODE: ${{ vars.VITE_AMAP_SECURITY_CODE }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

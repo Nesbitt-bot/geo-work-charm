@@ -6,7 +6,7 @@ export default ts.config(
   js.configs.recommended,
   ...ts.configs.recommended,
   {
-    files: ["**/*.{ts,tsx,js}"],
+    files: ["**/*.{ts,tsx,js,mjs}"],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
 );

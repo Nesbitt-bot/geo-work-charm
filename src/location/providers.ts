@@ -4,7 +4,7 @@ import { gcj02ToWgs84 } from "../geo/coordinates";
 export const browserProvider: LocationProvider = {
   watch(next, error) {
     if (!navigator.geolocation) {
-      error("Location unavailable. Choose simulation manually.");
+      error("Location unavailable.");
       return () => {};
     }
     const id = navigator.geolocation.watchPosition(
@@ -16,7 +16,7 @@ export const browserProvider: LocationProvider = {
           timestamp: p.timestamp,
           source: "browser",
         }),
-      (e) => error(`${e.message}. Choose simulation manually.`),
+      (e) => error(e.message || "Location unavailable."),
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
     );
     return () => navigator.geolocation.clearWatch(id);
