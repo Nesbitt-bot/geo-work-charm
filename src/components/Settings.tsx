@@ -173,6 +173,8 @@ export function SettingsPage({
     }
   };
   const foil = async (enabled: boolean) => {
+    update({ foil: enabled });
+    onLog(`Gravity reflection ${enabled ? "enabled" : "disabled"}`);
     if (enabled) {
       const motion = globalThis.DeviceOrientationEvent as
         | (typeof DeviceOrientationEvent & {
@@ -191,8 +193,6 @@ export function SettingsPage({
         }
       }
     }
-    update({ foil: enabled });
-    onLog(`Gravity reflection ${enabled ? "enabled" : "disabled"}`);
   };
   return (
     <div className="settings-sections">
