@@ -1,6 +1,6 @@
 # Geo Work Charm
 
-A browser-local workplace map and clock-out widget. Production uses actual browser GPS; Test uses a customizable simulated position. Search and chosen-address history use OpenStreetMap data. No backend, accounts, server database, or analytics.
+A mobile-first work badge with a reversible settings card. The front uses the supplied portrait, the official GitHub mark, **Trance-0**, and **Vibe coding engineer** by default; department is optional. The upper-right three-line menu flips the card 180° to its settings. Desktop visitors see a dismissible recommendation to use a phone. There is no login backend: opening the app loads your local badge.
 
 ## Quickstart
 
@@ -19,26 +19,31 @@ npm run preview
 
 No API key is needed. Location is requested immediately on page load, even before a workplace is selected. Browser permission is required on HTTPS / localhost. Denied GPS stays unavailable in Production; it never silently becomes simulated. Settings includes a permission retry button.
 
-Routes (hash routing works on static hosting):
-- `/` or `/#/production` — search, distance, street map and widget preview using browser GPS
-- `/#/test` — the same UI with a distance slider, clickable map and draggable Test location
-- `/#/settings` — coordinates, accuracy, geofence radii, map/search network options, offline maps and diagnostics
-- `/#/widget/production` — fullscreen widget using browser GPS
-- `/#/widget/test` — fullscreen widget using saved Test settings
+Routes use static-host-compatible hash routing:
 
-Navigation contains only **Production**, **Test**, and **Settings**. The preview's ⛶ icon opens its mode's widget; both widget links also appear in Settings. Legacy `/#/debug` remains a Test alias.
+- `/` or `/#/production` — badge front using browser GPS
+- `/#/test` — badge front using the saved Test location
+- `/#/settings` — settings back
+- `/#/debug?env=production` or `/#/debug?env=test` — logging-only back tab
+- `/#/widget/production` and `/#/widget/test` — standalone badges
 
-Choose an address, open a Test widget tab, then click the Test map, drag its marker, or change the distance slider. Simulation settings synchronize through localStorage. Production always uses browser GPS and ignores saved Test coordinates. Opening Settings from Test preserves the Test feed. Fullscreen widgets remain neutral until a reliable position and workplace are available.
+The back has **Production / Test / Debugging** tabs. Production and Test share the same Info, Company location and Additional sections. Test adds one separate Current location search/picker, plus optional coordinates, distance and accuracy. Choosing a Test position never alters Production GPS or company history. Debugging shows only bounded, in-memory session logs; it does not record GPS coordinates.
 
-The minimal main screen contains search, distance, map, and a widget preview. Address suggestions appear after 600 ms of typing, with Chinese IME handling, cancellation, arrow keys, Enter selection and Escape dismissal. Only selected addresses enter history; the latest choice becomes the next default. Online search/map controls are in Settings and default enabled.
+**Info** edits the profile photo, company logo, name, optional department and job title. **Company location** contains OSM-compatible address search, work/off-work thresholds and the off-work image (the original clock-out SVG by default). A collapsible map preview remains available. **Additional** contains light/dark themes, configurable accent/background/card colors, motion reflection, online options, permission retry, offline maps and a standalone badge link.
+
+Uploaded photos/logos/off-work images are kept as image Blobs in **IndexedDB**, not sent to a server. PNG, JPEG, WebP, GIF and SVG files up to 8 MB are supported; invalid images are rejected. Revision tokens in localStorage keep open badges synchronized. Reset restores the shipped defaults. Default assets are bundled and precached for offline startup.
+
+**Gravity / holographic reflection** in Additional is off by default. Turning it on enables a rainbow foil surface with device-orientation-driven reflection and gentle tilt; desktop pointer movement provides a fallback. Safari/iOS motion permission is requested only from the toggle/button user gesture. Reduced-motion preferences preserve a static foil texture and disable tilt/flip animation. The uploaded portrait itself is never changed.
+
+Address suggestions appear after 600 ms of typing, with Chinese IME handling, cancellation and keyboard selection. Only chosen company addresses enter history. The latest company remains the default on reload. Search and maps remain keyless and online by default; offline mode uses selected history and saved maps.
 
 Chinese POIs may be indexed without the city prefix or with middle-dot separators. The search normalizes punctuation, retries the POI without a city prefix or area suffix when necessary, and ranks matching area letters first. The live test `长沙万达总部国际 C区` finds OSM's `万达·总部国际·C区` at WGS84 latitude **28.2054614**, longitude **112.965934**, ahead of B区 alternatives. This address is a verification case, not hardcoded app data. OSM coverage still limits autocomplete; this is not Google's address database.
 
 ## Keyless and offline operation
 
-The dashboard defaults to online OpenStreetMap.de street tiles and Photon suggestions, with no AMap credentials. Until the first address is chosen it shows a world map, rather than assuming a workplace. Leaflet also renders saved OSM roads, paths, building outlines and available names offline. Three legacy neighborhood extracts remain bundled (1,462 features, about 370 KB uncompressed); they are map coverage, not selectable preset addresses. Labels avoid overlaps. Dragging, wheel/pinch/double-click/button zoom, keyboard navigation and a distance scale need no WebGL.
+The badge front makes no map or address requests. Opening a company picker uses keyless Photon suggestions; opening Map preview uses OpenStreetMap.de tiles unless disabled. Leaflet also renders saved local street data. Legacy extracts are coverage, not preset addresses.
 
-The first sample fits the workplace and position together. Later samples retain your pan/zoom. Production labels browser GPS as You; Test labels simulation as Test. Click the Test map or drag the Test marker to customize its position. The distance slider returns to distance-based simulation. Exact Test coordinates and accuracy are edited in Settings.
+Production remains browser-GPS-only. Test uses the separately chosen Current location; coordinates, the distance slider and dragging a Test marker remain available inside its settings. The location accuracy circle is visible in map preview.
 
 Settings → Save workplace map offline retrieves a bounded OSM extract around the chosen workplace through Overpass and saves up to three regional maps. Coverage is roughly 0.008 degrees across. The public server can time out; failures preserve saved data. Settings → Online street map controls keyless OpenStreetMap.de tiles, which are not bulk-downloaded or cached.
 
@@ -72,14 +77,17 @@ src/geo/nearby.ts           Distance-based Test position generation
 src/store.ts               State lifecycle, persistence and cross-tab settings
 src/components/Map.tsx     Minimal Leaflet map + draggable Test location
 src/components/WorkplaceSearch.tsx  Minimal address search and suggestions
-src/components/Settings.tsx  Accuracy, geofence, Test coordinates, networking, offline maps
+src/components/Settings.tsx  Shared sectioned Production/Test settings
+src/components/Badge.tsx     Portrait badge and motion/foil rendering
+src/components/Debugging.tsx  Session logging panel
+src/media.ts               IndexedDB image persistence and previews
 offline-plugin.ts          Build-time versioned app-shell service worker
 src/offline.ts             Base-aware service worker registration
 src/animations/index.tsx   Replaceable animation registry
 src/App.tsx                Production, Test, Settings and fullscreen widget routes
 ```
 
-The map shows workplace entry/exit rings, location and accuracy. It retains pan/zoom across position updates. The UI omits fictional neighbor dots and explanatory legends to keep the main screens focused on search and distance.
+The badge front shows identity and a small work/off-work status. A confirmed departure displays the configured off-work image; initialization does not replay a celebration. The settings back contains the location and map details.
 
 ## Geofence semantics
 
@@ -129,7 +137,7 @@ For a future service: introduce explicit consent, real authentication, private w
 
 ## References and license
 
-Original application code and SVG/CSS artwork, released under [MIT](LICENSE). Libraries keep their respective licenses.
+Original application code and clock-out SVG/CSS artwork are [MIT](LICENSE). The default portrait was supplied by the project user. The GitHub mark comes from official Octicons; its MIT license is included in src/assets/OCTICONS-LICENSE.txt. Libraries and OSM data retain their own licenses.
 
 - [Turf](https://turfjs.org/) — geospatial functions
 - [Leaflet](https://leafletjs.com/) — SVG street geometry and interactive map controls
@@ -143,8 +151,11 @@ These references are reading pointers, not claims of affiliation, compatibility 
 
 ## Verification record
 
-Validated with Node 26: dependency installation, ESLint, TypeScript, 58 passing Vitest tests, and a production build with `/geo-work-charm/` base. Tests cover geofence behavior, debounced suggestions, Chinese IME, keyboard selection, Chinese POI query/ranking, no preset addresses, restoring latest selected history, cancelled requests, real OSM map content, geometry conversion, bounded map download/cache behavior, service worker scope/cache isolation, and static-host `Vary: Origin` compatibility. The test command disables Node's experimental native Web Storage so jsdom supplies browser storage consistently.
+Validated with Node 26: dependency installation, ESLint, TypeScript, 65 passing Vitest tests, and a production build with `/geo-work-charm/` base. Tests cover geofence behavior, debounced suggestions, Chinese IME, keyboard selection, Chinese POI query/ranking, no preset addresses, restoring latest selected history, cancelled requests, real OSM map content, geometry conversion, bounded map download/cache behavior, service worker scope/cache isolation, and static-host `Vary: Origin` compatibility. The test command disables Node's experimental native Web Storage so jsdom supplies browser storage consistently.
 
 Live desktop/mobile verification typed `长沙万达总部国际 C区` without pressing Search, received `万达·总部国际·C区` ahead of B区, selected it, and reloaded with that address as the default. Both search and street tiles were on by default. Only C区 entered history. The mobile layout had no horizontal overflow at 375 px. All displayed suggestions and coordinates came from live Photon/OSM data, not a hardcoded lookup table.
 
 The Codex in-app browser verified visible OSM road/path labels and building outlines from the bundled maps, with Chinese road and building/place names, drag panning, zoom controls and a changing distance scale. The implementation uses SVG cartography rather than inaccessible CARTO tiles. The mobile map retains its 420 px height without horizontal overflow. With the final preview server stopped, the dashboard reloaded from cache with 466 SVG paths and real Chinese road/building labels. Build-time OSM extracts were successfully retrieved; the browser's subsequent public Overpass download returned HTTP 504, and the UI preserved the bundled map and reported the failure. The browser verified actual online street imagery and Chinese labels from OpenStreetMap.de; this replaces the inaccessible CARTO/OSM.org hosts and the Esri placeholder tiles in this part of China. Real GPS and AMap were not live-tested.
+
+
+Badge UI verification: supplied portrait and official logo, card flip, shared settings sections, logging-only Debugging, theme/palette and mode restoration, motion permission fallback, IndexedDB image bytes/reset, and image upload restoration after browser reload. A 390 × 844 view fit with no page scrolling. Physical iOS sensor permission and device tilt were not tested on hardware; orientation behavior is covered by simulated events, and reduced-motion behavior was observed in the desktop browser.

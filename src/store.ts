@@ -21,6 +21,20 @@ export interface Settings {
   testLocation: { name: string; lat: number; lng: number } | null;
   searchOnline: boolean;
   mapOnline: boolean;
+  profile: {
+    name: string;
+    title: string;
+    department: string;
+    avatar: string;
+    logo: string;
+    offwork: string;
+  };
+  theme: "light" | "dark";
+  foil: boolean;
+  colors: {
+    light: { background: string; card: string; accent: string };
+    dark: { background: string; card: string; accent: string };
+  };
 }
 const defaults: Settings = {
   code: "",
@@ -31,6 +45,20 @@ const defaults: Settings = {
   testLocation: null,
   searchOnline: true,
   mapOnline: true,
+  profile: {
+    name: "Trance-0",
+    title: "Vibe coding engineer",
+    department: "",
+    avatar: "",
+    logo: "",
+    offwork: "",
+  },
+  theme: "light",
+  foil: false,
+  colors: {
+    light: { background: "#eff2ec", card: "#ffffff", accent: "#476b57" },
+    dark: { background: "#101713", card: "#1c2821", accent: "#b6d2bd" },
+  },
 };
 
 function validCustom(value: unknown): Workplace | null {
@@ -82,6 +110,19 @@ function settings(): Settings {
   // or unselected suggestions from the previous geocoder cache.
   if (!recent && custom)
     rememberPlace({ name: custom.name, lat: custom.lat, lng: custom.lng });
+  const profile = s.profile ?? defaults.profile;
+  const color = (value: unknown, fallback: string) =>
+    typeof value === "string" && /^#[\da-f]{6}$/i.test(value)
+      ? value
+      : fallback;
+  const palette = (mode: "light" | "dark") => ({
+    background: color(
+      s.colors?.[mode]?.background,
+      defaults.colors[mode].background,
+    ),
+    card: color(s.colors?.[mode]?.card, defaults.colors[mode].card),
+    accent: color(s.colors?.[mode]?.accent, defaults.colors[mode].accent),
+  });
   return {
     ...defaults,
     ...s,
@@ -98,6 +139,26 @@ function settings(): Settings {
         : null,
     searchOnline: s.searchOnline !== false,
     mapOnline: s.mapOnline !== false,
+    profile: {
+      name:
+        typeof profile.name === "string"
+          ? profile.name.slice(0, 80)
+          : defaults.profile.name,
+      title:
+        typeof profile.title === "string"
+          ? profile.title.slice(0, 120)
+          : defaults.profile.title,
+      department:
+        typeof profile.department === "string"
+          ? profile.department.slice(0, 100)
+          : "",
+      avatar: typeof profile.avatar === "string" ? profile.avatar : "",
+      logo: typeof profile.logo === "string" ? profile.logo : "",
+      offwork: typeof profile.offwork === "string" ? profile.offwork : "",
+    },
+    theme: s.theme === "dark" ? "dark" : "light",
+    foil: s.foil === true,
+    colors: { light: palette("light"), dark: palette("dark") },
   };
 }
 export function useSettings() {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { LocationSample } from "../location/types";
 import {
   coordinatePlace,
@@ -14,16 +14,27 @@ export function WorkplaceSearch({
   compact = false,
   online: onlinePreference = true,
   label = "Search your workplace address",
+  placeholder,
+  showHistory = true,
+  selectionMessage = "Address saved. It will be your default on your next visit.",
 }: {
   sample: LocationSample | null;
   onChoose: (place: Place) => void;
   compact?: boolean;
   online?: boolean;
   label?: string;
+  placeholder?: string;
+  showHistory?: boolean;
+  selectionMessage?: string;
 }) {
+  const id = useId(),
+    inputId = `address-${id}`,
+    resultsId = `results-${id}`;
   const [query, setQuery] = useState("");
   const [online, setOnline] = useState(onlinePreference),
-    [results, setResults] = useState<Place[]>(() => savedPlaces().slice(0, 8));
+    [results, setResults] = useState<Place[]>(() =>
+      showHistory ? savedPlaces().slice(0, 8) : [],
+    );
   const [searching, setSearching] = useState(false),
     [message, setMessage] = useState("");
   const [active, setActive] = useState(-1),
@@ -48,7 +59,11 @@ export function WorkplaceSearch({
     setOpen(true);
     let local: Place[];
     try {
-      local = searchLocalPlaces(q);
+      local = showHistory
+        ? searchLocalPlaces(q)
+        : coordinatePlace(q)
+          ? [coordinatePlace(q)!]
+          : [];
     } catch (error) {
       setResults([]);
       setMessage((error as Error).message);
@@ -56,7 +71,7 @@ export function WorkplaceSearch({
     }
     setResults(local);
     if (!q) {
-      setResults(savedPlaces().slice(0, 8));
+      setResults(showHistory ? savedPlaces().slice(0, 8) : []);
       return;
     }
     if (!online || coordinatePlace(q)) {
@@ -105,13 +120,13 @@ export function WorkplaceSearch({
     setQuery("");
     setResults([]);
     onChoose({ ...place, searchText: query.trim() || place.searchText });
-    setMessage("Address saved. It will be your default on your next visit.");
+    setMessage(selectionMessage);
   };
   useEffect(() => {
     cancel();
     if (composing) return;
     if (!query.trim()) {
-      setResults(savedPlaces().slice(0, 8));
+      setResults(showHistory ? savedPlaces().slice(0, 8) : []);
       if (open) setMessage("");
       return;
     }
@@ -130,7 +145,7 @@ export function WorkplaceSearch({
   );
   return (
     <div className="workplace-search">
-      <label className={compact ? "sr-only" : "search-label"} htmlFor="address">
+      <label className={compact ? "sr-only" : "search-label"} htmlFor={inputId}>
         {label}
       </label>
       <form
@@ -143,17 +158,18 @@ export function WorkplaceSearch({
         }}
       >
         <input
-          id="address"
+          id={inputId}
           type="search"
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={open && results.length > 0}
-          aria-controls="address-results"
+          aria-controls={resultsId}
           aria-activedescendant={
-            active >= 0 ? `address-result-${active}` : undefined
+            active >= 0 ? `${resultsId}-${active}` : undefined
           }
           placeholder={
-            savedPlaces()[0]?.name.split(", ")[0] ||
+            placeholder ||
+            (showHistory ? savedPlaces()[0]?.name.split(", ")[0] : "") ||
             "Search a building, street or address"
           }
           value={query}
@@ -169,7 +185,8 @@ export function WorkplaceSearch({
           }}
           onFocus={() => {
             setOpen(true);
-            if (!query.trim()) setResults(savedPlaces().slice(0, 8));
+            if (!query.trim())
+              setResults(showHistory ? savedPlaces().slice(0, 8) : []);
           }}
           onBlur={(event) => {
             if (
@@ -201,7 +218,7 @@ export function WorkplaceSearch({
               choose(results[active]);
             }
           }}
-          aria-describedby="search-help search-message"
+          aria-describedby={`${id}-help ${id}-message`}
         />
         <button type="submit" disabled={searching}>
           {searching ? "Searching…" : "Search"}
@@ -209,7 +226,7 @@ export function WorkplaceSearch({
       </form>
       {open && results.length > 0 && (
         <ul
-          id="address-results"
+          id={resultsId}
           className="results suggestions"
           role="listbox"
           aria-label={query.trim() ? "Address suggestions" : "Recent addresses"}
@@ -221,7 +238,7 @@ export function WorkplaceSearch({
           )}
           {results.map((place, i) => (
             <li
-              id={`address-result-${i}`}
+              id={`${resultsId}-${i}`}
               key={`${place.lat},${place.lng}`}
               role="option"
               aria-selected={active === i}
@@ -239,7 +256,7 @@ export function WorkplaceSearch({
           ))}
         </ul>
       )}
-      <p className="note" id="search-message" role="status" aria-live="polite">
+      <p className="note" id={`${id}-message`} role="status" aria-live="polite">
         {searching
           ? "Looking for matching addresses…"
           : compact && results.length
@@ -264,7 +281,7 @@ export function WorkplaceSearch({
             />
             Online address search
           </label>
-          <p className="note" id="search-help">
+          <p className="note" id={`${id}-help`}>
             Suggestions use OpenStreetMap data. Only addresses you choose enter
             your history.
           </p>
