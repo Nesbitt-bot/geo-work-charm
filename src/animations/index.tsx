@@ -23,9 +23,11 @@ export const animations = { clockOut: ClockOut };
 export function Charm({
   status,
   departure,
+  waitingMessage = "Waiting for location",
 }: {
   status: Status;
   departure: number;
+  waitingMessage?: string;
 }) {
   const [playing, setPlaying] = useState(false),
     [time, setTime] = useState(new Date()),
@@ -66,7 +68,7 @@ export function Charm({
             {status === "WORKING"
               ? "Working"
               : status === "UNKNOWN"
-                ? "Waiting for location"
+                ? waitingMessage
                 : "Off work"}
           </h2>
         </div>

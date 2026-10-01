@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   initialState,
   metersFrom,
@@ -125,24 +125,46 @@ export function useSettings() {
       }),
   ] as const;
 }
+interface BrowserEvent {
+  sample: LocationSample | null;
+  error: string;
+}
+interface BrowserFeed extends BrowserEvent {
+  subscribe?: (listener: (event: BrowserEvent) => void) => () => void;
+  getSnapshot?: () => BrowserEvent;
+}
 export function useBrowserLocation() {
   const [sample, setSample] = useState<LocationSample | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const latest = useRef<BrowserEvent>({ sample: null, error: "" });
+  const listeners = useRef(new Set<(event: BrowserEvent) => void>());
+  const subscribe = useCallback((listener: (event: BrowserEvent) => void) => {
+    listeners.current.add(listener);
+    return () => {
+      listeners.current.delete(listener);
+    };
+  }, []);
+  const getSnapshot = useCallback(() => latest.current, []);
   useEffect(() => {
     let active = true;
     setError("");
     const stop = browserProvider.watch(
       (value) => {
         if (active) {
+          latest.current = { sample: value, error: "" };
           setSample(value);
           setError("");
+          // The classifier sees every fix, even when React batches rendering.
+          listeners.current.forEach((listener) => listener(latest.current));
         }
       },
       (message) => {
         if (active) {
+          latest.current = { sample: null, error: message };
           setSample(null);
           setError(message);
+          listeners.current.forEach((listener) => listener(latest.current));
         }
       },
     );
@@ -151,12 +173,18 @@ export function useBrowserLocation() {
       stop();
     };
   }, [attempt]);
-  return { sample, error, retry: () => setAttempt((value) => value + 1) };
+  return {
+    sample,
+    error,
+    subscribe,
+    getSnapshot,
+    retry: () => setAttempt((value) => value + 1),
+  };
 }
 export function useGeofence(
   work: Workplace | undefined,
   config: Settings,
-  browser?: { sample: LocationSample | null; error: string },
+  browser?: BrowserFeed,
 ) {
   const configRef = useRef(config);
   configRef.current = config;
@@ -176,7 +204,7 @@ export function useGeofence(
     let active = true,
       source: Source | undefined,
       lastTimestamp = -1,
-      lastReceived = 0,
+      initialized = false,
       armed = false;
     let current = initialState();
     setState(current);
@@ -194,12 +222,16 @@ export function useGeofence(
           ["WORKING", "OFF_WORK"].includes(saved) ? saved : "UNKNOWN",
         );
         lastTimestamp = -1;
+        initialized = false;
       }
+      if (Number.isFinite(s.timestamp) && s.timestamp <= lastTimestamp) return;
       if (
         !Number.isFinite(s.timestamp) ||
-        s.timestamp <= lastTimestamp ||
         !validCoordinate(s.latitude, s.longitude)
       ) {
+        initialized = false;
+        armed = false;
+        setSample(null);
         current = {
           ...current,
           display: "UNKNOWN",
@@ -211,7 +243,6 @@ export function useGeofence(
         return;
       }
       lastTimestamp = s.timestamp;
-      lastReceived = Date.now();
       setSample(s);
       setError("");
       const previousDeparture = current.departure;
@@ -222,6 +253,26 @@ export function useGeofence(
         work.enter,
         work.exit,
       );
+      if (current.raw === "UNKNOWN") {
+        initialized = false;
+        armed = false;
+      }
+      // Establish status from one reliable observation. Browser watches emit
+      // on position changes, so a stationary user may never receive a second
+      // fix. This bootstrap cannot create a departure event. Once initialized,
+      // ordinary changes still require two distinct observations.
+      if (!initialized && current.raw !== "UNKNOWN") {
+        current = {
+          ...current,
+          stable: current.raw,
+          display: current.raw,
+          candidate: "UNKNOWN",
+          count: 0,
+          lastTransition: null,
+          departure: previousDeparture,
+        };
+        initialized = true;
+      }
       if (!armed) current.departure = previousDeparture;
       if (current.display === "WORKING" && current.raw === "WORKING")
         armed = true;
@@ -230,6 +281,8 @@ export function useGeofence(
     };
     const unavailable = (message: string) => {
       if (!active) return;
+      initialized = false;
+      armed = false;
       setError(message);
       setSample(null);
       current = {
@@ -264,28 +317,40 @@ export function useGeofence(
     } else if (config.provider === "real") {
       consumeRef.current = consume;
       errorRef.current = unavailable;
+      if (browser?.subscribe) {
+        const receive = (event: BrowserEvent) => {
+          if (event.error) unavailable(event.error);
+          else if (event.sample && delivered.current !== event.sample) {
+            delivered.current = event.sample;
+            consume(event.sample);
+          }
+        };
+        stop = browser.subscribe(receive);
+        receive(browser.getSnapshot?.() ?? browser);
+      }
     } else setError("Location is off. Enable it or choose simulation.");
-    const stale = setInterval(() => {
-      if (lastReceived && Date.now() - lastReceived > 20000)
-        unavailable("Waiting for a fresh position…");
-    }, 5000);
     return () => {
       active = false;
       consumeRef.current = null;
       errorRef.current = null;
       stop();
-      clearInterval(stale);
     };
     // Changing mock values must not reset a confirmation streak: simulation uses a separate settings ref below.
-  }, [work, config.provider]);
+  }, [work, config.provider, browser?.subscribe]);
   useEffect(() => {
-    if (config.provider !== "real") return;
+    if (config.provider !== "real" || browser?.subscribe) return;
     if (browser?.error) errorRef.current?.(browser.error);
     else if (browser?.sample && delivered.current !== browser.sample) {
       delivered.current = browser.sample;
       consumeRef.current?.(browser.sample);
     }
-  }, [work, config.provider, browser?.sample, browser?.error]);
+  }, [
+    work,
+    config.provider,
+    browser?.sample,
+    browser?.error,
+    browser?.subscribe,
+  ]);
   return {
     state,
     sample,

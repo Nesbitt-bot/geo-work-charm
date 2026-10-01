@@ -129,6 +129,98 @@ it("production ignores saved simulation preferences and updates from browser GPS
   expect(screen.getByText("Waiting for location")).toBeTruthy();
   expect(screen.getByLabelText("Distance").textContent).toContain("—");
 });
+it.each([
+  [0, "Working"],
+  [0.003, "Off work"],
+])(
+  "classifies a single reliable stationary GPS fix (%s) without waiting for movement",
+  async (offset, label) => {
+    vi.useFakeTimers();
+    render(<App />);
+    await act(async () => position(office.lat + offset));
+    expect(screen.getByText(label)).toBeTruthy();
+    await tick(30000);
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(screen.queryByLabelText("Clocking out")).toBeNull();
+  },
+);
+it("retains consecutive fixes when React batches browser callbacks", async () => {
+  render(<App />);
+  await act(async () => position());
+  await act(async () => {
+    position(office.lat + 0.003);
+    position(office.lat + 0.003);
+  });
+  expect(screen.getByLabelText("Clocking out")).toBeTruthy();
+});
+it("ignores duplicate fixes and still confirms departures with two distinct updates", async () => {
+  render(<App />);
+  const fix = {
+    coords: { latitude: office.lat, longitude: office.lng, accuracy: 15 },
+    timestamp: Date.now(),
+  } as GeolocationPosition;
+  await act(async () => success(fix));
+  await act(async () => success(fix));
+  expect(screen.getByText("Working")).toBeTruthy();
+  await act(async () => position(office.lat + 0.003));
+  expect(screen.getByText("Working")).toBeTruthy();
+  expect(screen.queryByLabelText("Clocking out")).toBeNull();
+  await act(async () => position(office.lat + 0.003));
+  expect(screen.getByLabelText("Clocking out")).toBeTruthy();
+});
+it("explains poor accuracy and the hysteresis band instead of claiming location is missing", async () => {
+  render(<App />);
+  await act(async () => position(office.lat, office.lng, 200));
+  expect(screen.getByText("Low location accuracy")).toBeTruthy();
+  await act(async () => position(office.lat + 0.0009, office.lng));
+  expect(screen.getByText("Near workplace boundary")).toBeTruthy();
+  expect(screen.queryByText("Waiting for location")).toBeNull();
+});
+it("re-establishes status from one recovered GPS fix after a provider error without a fake departure", async () => {
+  render(<App />);
+  await act(async () => position());
+  await act(async () =>
+    failure?.({ message: "Unavailable", code: 2 } as GeolocationPositionError),
+  );
+  expect(screen.getByText("Waiting for location")).toBeTruthy();
+  await act(async () => position(office.lat + 0.003));
+  expect(screen.getByText("Off work")).toBeTruthy();
+  expect(screen.queryByLabelText("Clocking out")).toBeNull();
+});
+it("reacquires status from one good fix after accuracy improves, without a false clock-out", async () => {
+  render(<App />);
+  await act(async () => position());
+  await act(async () => position(office.lat, office.lng, 200));
+  expect(screen.getByText("Low location accuracy")).toBeTruthy();
+  await act(async () => position(office.lat + 0.003));
+  expect(screen.getByText("Off work")).toBeTruthy();
+  expect(screen.queryByLabelText("Clocking out")).toBeNull();
+});
+it("classifies an existing browser fix immediately after selecting a workplace", async () => {
+  localStorage.clear();
+  render(<App />);
+  await act(async () => position());
+  const input = screen.getByRole("combobox", {
+    name: "Search your workplace address",
+  });
+  fireEvent.change(input, { target: { value: `${office.lat},${office.lng}` } });
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+  fireEvent.click(screen.getByRole("listbox").querySelector("button")!);
+  expect(screen.getByText("Working")).toBeTruthy();
+});
+it.each([
+  [0, "Working"],
+  [0.003, "Off work"],
+])(
+  "initializes a Production fullscreen widget from one fix (%s)",
+  async (offset, label) => {
+    location.hash = "#/widget/production";
+    render(<App />);
+    await act(async () => position(office.lat + offset));
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(screen.queryByLabelText("Clocking out")).toBeNull();
+  },
+);
 it("test locations override browser GPS and advanced parameters live only in Settings", async () => {
   vi.useFakeTimers();
   location.hash = "#/test";
@@ -192,7 +284,7 @@ it("test entry/departure confirmation and unreliable accuracy remain correct aft
     window.dispatchEvent(new StorageEvent("storage", { key: "gw:settings" }));
   });
   await tick();
-  expect(screen.getByText("Waiting for location")).toBeTruthy();
+  expect(screen.getByText("Low location accuracy")).toBeTruthy();
   expect(screen.queryByLabelText("Clocking out")).toBeNull();
   await act(async () => {
     localStorage.setItem(

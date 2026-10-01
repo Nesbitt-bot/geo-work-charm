@@ -85,12 +85,14 @@ The map shows workplace entry/exit rings, location and accuracy. It retains pan/
 
 - At **≤80 m**, raw state is WORKING; at **≥120 m**, OFF_WORK.
 - In the open 80–120 m band, retain the stable state. An unknown initial state stays unknown.
-- Require **two consecutive valid samples** of a new state. One outlier cannot switch state.
+- Establish the initial status from the **first reliable fix**; browser watches may not emit another fix while stationary. Initialization never plays a departure animation. Later status changes require **two distinct consecutive valid fixes**; one outlier cannot switch state.
 - Accuracy **>150 m**, negative/nonfinite values, invalid coordinates or fence configuration are unreliable. Show UNKNOWN, freeze stable state, and break the candidate streak.
-- Browser/provider errors and stale feeds show a neutral widget, not a fake departure.
+- Browser/provider errors show a neutral widget, not a fake departure. An unchanged position is retained while its watch remains active; silence from a stationary watch is not treated as a missing fix. Duplicate/out-of-order timestamps do not clear a valid status or count as confirmation.
 - Only confirmed WORKING → OFF_WORK generates a departure event. OFF_WORK initialization, poor accuracy and entry do not animate.
 - Persist only stable state, separately by demo code and actual source. Candidates and events are never persisted. Reopening a page does not replay a stored transition; a session must first observe a reliable working state before arming a new departure animation.
 - Sample source changes clear confirmation candidates; real and simulated stable states are isolated.
+
+Production processes each GPS callback directly rather than relying on React-rendered samples, so batched callbacks cannot lose confirmation fixes. Choosing a workplace after GPS has arrived evaluates that existing fix immediately. After a provider error or poor accuracy, the first recovered reliable fix re-establishes status without a false clock-out. Neutral charm labels distinguish a missing workplace, missing position, poor accuracy and an undecided boundary position.
 
 `evaluate` and `reduceSample` are pure; `metersFrom` uses Turf great-circle distance. The classifier has a documented future `booleanPointInPolygon` seam, not a pretended polygon implementation. These circles indicate proximity, **not building entry or employment attendance**.
 
@@ -141,7 +143,7 @@ These references are reading pointers, not claims of affiliation, compatibility 
 
 ## Verification record
 
-Validated with Node 26: dependency installation, ESLint, TypeScript, 48 passing Vitest tests, and a production build with `/geo-work-charm/` base. Tests cover geofence behavior, debounced suggestions, Chinese IME, keyboard selection, Chinese POI query/ranking, no preset addresses, restoring latest selected history, cancelled requests, real OSM map content, geometry conversion, bounded map download/cache behavior, service worker scope/cache isolation, and static-host `Vary: Origin` compatibility. The test command disables Node's experimental native Web Storage so jsdom supplies browser storage consistently.
+Validated with Node 26: dependency installation, ESLint, TypeScript, 58 passing Vitest tests, and a production build with `/geo-work-charm/` base. Tests cover geofence behavior, debounced suggestions, Chinese IME, keyboard selection, Chinese POI query/ranking, no preset addresses, restoring latest selected history, cancelled requests, real OSM map content, geometry conversion, bounded map download/cache behavior, service worker scope/cache isolation, and static-host `Vary: Origin` compatibility. The test command disables Node's experimental native Web Storage so jsdom supplies browser storage consistently.
 
 Live desktop/mobile verification typed `长沙万达总部国际 C区` without pressing Search, received `万达·总部国际·C区` ahead of B区, selected it, and reloaded with that address as the default. Both search and street tiles were on by default. Only C区 entered history. The mobile layout had no horizontal overflow at 375 px. All displayed suggestions and coordinates came from live Photon/OSM data, not a hardcoded lookup table.
 

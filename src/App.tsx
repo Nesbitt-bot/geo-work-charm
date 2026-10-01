@@ -75,6 +75,15 @@ export default function App() {
     const custom = workplaceFor(place);
     update({ custom, code: custom.code });
   };
+  const waitingMessage = !work
+    ? "Choose workplace"
+    : !sample
+      ? "Waiting for location"
+      : !Number.isFinite(sample.accuracy) ||
+          sample.accuracy < 0 ||
+          sample.accuracy > 150
+        ? "Low location accuracy"
+        : "Near workplace boundary";
   if (widget)
     return (
       <main
@@ -86,6 +95,7 @@ export default function App() {
           key={`${work?.code ?? "unselected"}:${mode}`}
           status={state.display}
           departure={state.departure}
+          waitingMessage={waitingMessage}
         />
       </main>
     );
@@ -239,6 +249,7 @@ export default function App() {
                 key={`${work?.code ?? "unselected"}:${mode}`}
                 status={state.display}
                 departure={state.departure}
+                waitingMessage={waitingMessage}
               />
             </section>
           </div>
