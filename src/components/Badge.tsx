@@ -7,6 +7,7 @@ import {
 import type { Settings } from "../store";
 import type { Status } from "../core/geofence";
 import { DEFAULT_MEDIA, useBadgeImage } from "../media";
+import { OfficeScene } from "./OfficeScene";
 
 export function Badge({
   config,
@@ -95,9 +96,9 @@ export function Badge({
     seen = useRef({ departure, manualDeparture });
   const previousStatus = useRef(status);
   const previousManualDeparture = useRef(manualDeparture);
-  const [transition, setTransition] = useState<"sunset" | "sunrise" | null>(
-    null,
-  );
+  const [transition, setTransition] = useState<
+    "lights-off" | "lights-on" | null
+  >(null);
   useEffect(() => {
     const previous = previousStatus.current;
     previousStatus.current = status;
@@ -107,8 +108,11 @@ export function Badge({
       ((previous === "WORKING" || manualClockout) && status === "OFF_WORK") ||
       (previous === "OFF_WORK" && status === "WORKING")
     ) {
-      setTransition(status === "OFF_WORK" ? "sunset" : "sunrise");
-      const timer = setTimeout(() => setTransition(null), 1200);
+      setTransition(status === "OFF_WORK" ? "lights-off" : "lights-on");
+      const reduced = window.matchMedia?.(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      const timer = setTimeout(() => setTransition(null), reduced ? 900 : 3200);
       return () => clearTimeout(timer);
     }
     setTransition(null);
@@ -174,7 +178,7 @@ export function Badge({
   return (
     <section
       ref={face}
-      className={`badge-front ${config.foil ? "has-foil" : ""} ${status === "OFF_WORK" ? "is-offwork" : ""}`}
+      className={`badge-front ${config.foil ? "has-foil" : ""} ${status === "OFF_WORK" ? "is-offwork" : ""} ${transition ? "has-office-transition" : ""}`}
       aria-label="Work badge"
       tabIndex={config.doubleClickSwitch ? 0 : undefined}
       aria-keyshortcuts={config.doubleClickSwitch ? "Enter Space" : undefined}
@@ -219,12 +223,16 @@ export function Badge({
           className={`offwork-scene ${celebrating ? "celebrating" : ""}`}
           aria-label={celebrating ? "Clocking out" : undefined}
         >
-          <img
-            key={`off-${departure}-${manualDeparture}`}
-            className="offwork-picture"
-            src={offwork}
-            alt="Off-work display"
-          />
+          {config.profile.offwork ? (
+            <img
+              key={`off-${departure}-${manualDeparture}`}
+              className="offwork-picture"
+              src={offwork}
+              alt="Off-work display"
+            />
+          ) : (
+            <OfficeScene key={`off-${departure}-${manualDeparture}`} />
+          )}
         </div>
       )}
       <div className="badge-print">
@@ -286,30 +294,19 @@ export function Badge({
         <div className="badge-ruler" aria-hidden="true" />
       </div>
       {transition && (
-        <svg
+        <div
           className={`badge-transition ${transition}`}
-          viewBox="0 0 400 800"
-          preserveAspectRatio="xMidYMid slice"
-          aria-label={
-            transition === "sunset" ? "Sunset transition" : "Sunrise transition"
-          }
-          role="img"
+          key={`${transition}-${manualDeparture}`}
         >
-          <rect
-            width="400"
-            height="800"
-            fill={transition === "sunset" ? "#e89564" : "#f4d7a0"}
+          <OfficeScene
+            phase={transition}
+            label={
+              transition === "lights-off"
+                ? "Office lights turning off"
+                : "Office lights turning on"
+            }
           />
-          <circle
-            className="transition-sun"
-            cx="200"
-            cy="400"
-            r="80"
-            fill="#fff1b5"
-          />
-          <path d="M0 480 Q100 430 200 490 T400 470 V800 H0Z" fill="#30483f" />
-          <path d="M0 550 Q130 480 260 560 T400 540 V800 H0Z" fill="#1c302b" />
-        </svg>
+        </div>
       )}
       {config.foil && (
         <>

@@ -1,7 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" fill="none" stroke="#c3e3aa" stroke-width="2">
-  <rect x="0" y="0" width="200" height="160" rx="24" fill="#142820" stroke="none"/>
-  <path stroke-dasharray="4 6" opacity=".5" d="M20 120 Q70 50 150 65"/>
-  <rect x="80" y="44" width="46" height="62" rx="18" fill="#b7d3a1" stroke="none"/>
-  <g stroke="#20382b"><circle cx="96" cy="68" r="3"/><circle cx="112" cy="68" r="3"/><path d="M96 82 Q104 90 112 82"/></g>
-  <path d="M152 28v18m-9-9h18M45 54v10m-5-5h10"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" fill="none">
+  <defs>
+    <linearGradient id="office-sky" x1="200" y1="0" x2="200" y2="800" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#252c35"/><stop offset=".62" stop-color="#161c24"/><stop offset="1" stop-color="#0c1118"/>
+    </linearGradient>
+    <linearGradient id="office-front" x1="104" y1="256" x2="270" y2="618" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#414952"/><stop offset="1" stop-color="#252c34"/>
+    </linearGradient>
+    <linearGradient id="office-side" x1="270" y1="256" x2="314" y2="600" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#303842"/><stop offset="1" stop-color="#1b222b"/>
+    </linearGradient>
+    <radialGradient id="office-haze"><stop stop-color="#727f8c" stop-opacity=".12"/><stop offset="1" stop-color="#727f8c" stop-opacity="0"/></radialGradient>
+    <radialGradient id="office-ground"><stop stop-color="#0a0e14" stop-opacity=".8"/><stop offset="1" stop-color="#0a0e14" stop-opacity="0"/></radialGradient>
+    <linearGradient id="office-glass" x1="104" y1="258" x2="270" y2="600" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b4c2cf" stop-opacity=".06"/><stop offset=".55" stop-color="#b4c2cf" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="800" fill="url(#office-sky)"/>
+  <ellipse cx="204" cy="394" rx="192" ry="260" fill="url(#office-haze)"/>
+  <ellipse cx="208" cy="629" rx="145" ry="29" fill="url(#office-ground)"/>
+  <path d="M84 619 273 619 334 590 145 590Z" fill="#252d36"/>
+  <path d="M84 619 273 619 273 627 84 627Z" fill="#202731"/>
+  <path d="M273 619 334 590 334 598 273 627Z" fill="#171e27"/>
+  <path d="M104 258 148 236 314 236 270 258Z" fill="#4c5661"/>
+  <path d="M270 258 314 236 314 592 270 614Z" fill="url(#office-side)"/>
+  <path d="M104 258H270V614H104Z" fill="url(#office-front)" stroke="#8a98a6" stroke-opacity=".2"/>
+  <path d="M104 258H270L104 510Z" fill="url(#office-glass)"/>
+  <g fill="#111820" stroke="#a6b5c4" stroke-opacity=".09" stroke-width=".8">
+    <path d="M123 282h32v27h-32Zm42 0h32v27h-32Zm42 0h32v27h-32Z"/>
+    <path d="M123 326h32v27h-32Zm42 0h32v27h-32Zm42 0h32v27h-32Z"/>
+    <path d="M123 370h32v27h-32Zm42 0h32v27h-32Zm42 0h32v27h-32Z"/>
+    <path d="M123 414h32v27h-32Zm42 0h32v27h-32Zm42 0h32v27h-32Z"/>
+    <path d="M123 458h32v27h-32Zm42 0h32v27h-32Zm42 0h32v27h-32Z"/>
+    <path d="M123 502h32v27h-32Zm42 0h32v27h-32Zm42 0h32v27h-32Z"/>
+    <path d="M123 546h32v27h-32Zm42 0h32v27h-32Zm42 0h32v27h-32Z"/>
+  </g>
+  <g class="office-lights" fill="#e8c78d">
+    <g class="office-floor" opacity=".06"><path d="M124 283h30v25h-30Zm84 0h30v25h-30Z"/></g>
+    <g class="office-floor" opacity=".06"><path d="M166 327h30v25h-30Zm42 0h30v25h-30Z"/></g>
+    <g class="office-floor" opacity=".06"><path d="M124 371h30v25h-30Zm42 0h30v25h-30Z"/></g>
+    <g class="office-floor" opacity=".06"><path d="M124 415h30v25h-30Zm84 0h30v25h-30Z"/></g>
+    <g class="office-floor" opacity=".06"><path d="M166 459h30v25h-30Zm42 0h30v25h-30Z"/></g>
+    <g class="office-floor" opacity=".06"><path d="M124 503h30v25h-30Z"/></g>
+    <g class="office-floor" opacity=".06"><path d="M166 547h30v25h-30Zm42 0h30v25h-30Z"/></g>
+  </g>
+  <path d="M285 276v287m14-294v287" stroke="#8b9aa9" stroke-opacity=".13"/>
+  <path d="m270 316 44-22m-44 66 44-22m-44 66 44-22m-44 66 44-22m-44 66 44-22m-44 66 44-22m-44 66 44-22" stroke="#8b9aa9" stroke-opacity=".09"/>
+  <path d="M171 590h32v24h-32Z" fill="#111821" stroke="#8793a0" stroke-opacity=".18"/>
+  <path d="M187 590v24" stroke="#8793a0" stroke-opacity=".16"/>
+  <path d="M167 584h40" stroke="#e8c78d" stroke-opacity=".5" stroke-width="1.5"/>
+  <path d="M104 258H270L314 236M270 258V614" stroke="#aab8c5" stroke-opacity=".22" stroke-width=".7"/>
 </svg>

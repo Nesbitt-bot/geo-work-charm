@@ -33,13 +33,77 @@ afterEach(() => {
 });
 const open = () =>
   fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+it("animates inline SVG lights through both directions and cleans up the overlay", () => {
+  vi.useFakeTimers();
+  try {
+    render(<App />);
+    const badge = screen.getByRole("region", { name: "Work badge" });
+    fireEvent.doubleClick(badge);
+    const scene = screen.getByRole("img", {
+      name: "Office lights turning off",
+    });
+    expect(scene.querySelectorAll("svg .office-floor")).toHaveLength(7);
+    const ids = Array.from(document.querySelectorAll(".office-scene [id]")).map(
+      (el) => el.id,
+    );
+    expect(new Set(ids).size).toBe(ids.length);
+    act(() => vi.advanceTimersByTime(3200));
+    expect(
+      screen.queryByRole("img", { name: "Office lights turning off" }),
+    ).toBeNull();
+    expect(
+      screen
+        .getByRole("img", { name: "Off-work display" })
+        .querySelector("svg"),
+    ).toBeTruthy();
+    fireEvent.doubleClick(badge);
+    expect(
+      screen
+        .getByRole("img", { name: "Office lights turning on" })
+        .querySelector("svg"),
+    ).toBeTruthy();
+    act(() => vi.advanceTimersByTime(3200));
+    expect(
+      screen.queryByRole("img", { name: "Office lights turning on" }),
+    ).toBeNull();
+    expect(screen.getByRole("img", { name: "Badge portrait" })).toBeTruthy();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it("keeps the light fade visible with reduced motion and removes it after the shorter duration", () => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({ matches: true })),
+  );
+  vi.useFakeTimers();
+  try {
+    render(<App />);
+    fireEvent.doubleClick(screen.getByRole("region", { name: "Work badge" }));
+    expect(
+      screen.getByRole("img", { name: "Office lights turning off" }),
+    ).toBeTruthy();
+    act(() => vi.advanceTimersByTime(899));
+    expect(
+      screen.getByRole("img", { name: "Office lights turning off" }),
+    ).toBeTruthy();
+    act(() => vi.advanceTimersByTime(1));
+    expect(
+      screen.queryByRole("img", { name: "Office lights turning off" }),
+    ).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
 it("double-clicks without GPS or a workplace, replays off-work animation and supports keyboard switching", () => {
   render(<App />);
   const badge = screen.getByRole("region", { name: "Work badge" });
   fireEvent.doubleClick(badge);
   expect(screen.getByRole("status").textContent).toBe("Off work");
   expect(screen.getByLabelText("Clocking out")).toBeTruthy();
-  expect(screen.getByRole("img", { name: "Sunset transition" })).toBeTruthy();
+  expect(
+    screen.getByRole("img", { name: "Office lights turning off" }),
+  ).toBeTruthy();
   expect(screen.queryByRole("img", { name: "Badge portrait" })).toBeNull();
   expect(
     screen
@@ -49,7 +113,9 @@ it("double-clicks without GPS or a workplace, replays off-work animation and sup
   const firstImage = screen.getByRole("img", { name: "Off-work display" });
   fireEvent.doubleClick(badge);
   expect(screen.getByRole("status").textContent).toBe("Working");
-  expect(screen.getByRole("img", { name: "Sunrise transition" })).toBeTruthy();
+  expect(
+    screen.getByRole("img", { name: "Office lights turning on" }),
+  ).toBeTruthy();
   expect(screen.queryByLabelText("Clocking out")).toBeNull();
   fireEvent.keyDown(badge, { key: "Enter" });
   expect(screen.getByLabelText("Clocking out")).toBeTruthy();
