@@ -79,7 +79,29 @@ const tick = async (ms = 2300) =>
   act(async () => {
     vi.advanceTimersByTime(ms);
   });
-it("manual clock-out bypasses working GPS, survives fixes and resets when modes change", async () => {
+it("custom source without a chosen point stays unavailable instead of inventing a location", async () => {
+  localStorage.setItem(
+    "gw:settings",
+    JSON.stringify({ locationSource: "custom" }),
+  );
+  vi.useFakeTimers();
+  render(<App />);
+  await act(async () => position());
+  await tick();
+  expect(screen.getByRole("status").textContent).toBe(
+    "Choose a custom location",
+  );
+  expect(
+    screen.queryByLabelText("Distance", { selector: ".badge-distance" }),
+  ).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Location source" }), {
+    target: { value: "browser" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Return to badge" }));
+  expect(screen.getByRole("status").textContent).toBe("Working");
+});
+it("manual clock-out bypasses working GPS, survives fixes and resets when location source changes", async () => {
   localStorage.setItem("gw:settings", JSON.stringify({ distance: 0 }));
   render(<App />);
   await act(async () => position());
@@ -100,10 +122,16 @@ it("manual clock-out bypasses working GPS, survives fixes and resets when modes 
   );
   expect(screen.getByRole("status").textContent).toBe("Off work");
   fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
-  fireEvent.click(screen.getByRole("tab", { name: "Test" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Location source" }), {
+    target: { value: "custom" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Return to badge" }));
   expect(screen.getByRole("status").textContent).not.toBe("Off work");
-  await route("#/production");
+  fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Location source" }), {
+    target: { value: "browser" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Return to badge" }));
   await act(async () => position());
   expect(screen.getByRole("status").textContent).toBe("Working");
 });
@@ -125,7 +153,7 @@ it("double-click replays clock-out when GPS already says off work and disabling 
   expect(screen.getByRole("status").textContent).toBe("Off work");
   expect(screen.queryByLabelText("Clocking out")).toBeNull();
 });
-it("starts browser location before any workplace exists and exposes exactly three navigation links", () => {
+it("starts browser location before any workplace exists and exposes two tabs", () => {
   localStorage.clear();
   render(<App />);
   expect(watch).toHaveBeenCalledOnce();
@@ -135,7 +163,7 @@ it("starts browser location before any workplace exists and exposes exactly thre
     within(screen.getByRole("tablist"))
       .getAllByRole("tab")
       .map((link) => link.textContent),
-  ).toEqual(["Production", "Test", "Debugging"]);
+  ).toEqual(["Settings", "Debugging"]);
   expect(
     screen.getByRole("combobox", { name: "Company address" }),
   ).toBeTruthy();
@@ -172,7 +200,7 @@ it("production ignores saved simulation preferences and updates from browser GPS
     screen
       .getByRole("link", { name: "Open fullscreen badge ↗" })
       .getAttribute("href"),
-  ).toBe("#/widget/production");
+  ).toBe("#/widget");
   await act(async () => {
     failure?.({
       message: "Permission denied",
@@ -270,7 +298,7 @@ it.each([
 ])(
   "initializes a Production fullscreen widget from one fix (%s)",
   async (offset, label) => {
-    location.hash = "#/widget/production";
+    location.hash = "#/widget";
     render(<App />);
     await act(async () => position(office.lat + offset));
     expect(screen.getByText(label)).toBeTruthy();
@@ -278,6 +306,13 @@ it.each([
   },
 );
 it("test locations override browser GPS and advanced parameters live only in Settings", async () => {
+  localStorage.setItem(
+    "gw:settings",
+    JSON.stringify({
+      locationSource: "custom",
+      testLocation: { ...office, lat: office.lat + 0.002 },
+    }),
+  );
   vi.useFakeTimers();
   location.hash = "#/test";
   render(<App />);
@@ -288,23 +323,29 @@ it("test locations override browser GPS and advanced parameters live only in Set
   expect(
     screen.getByLabelText("Distance", { selector: ".badge-distance" })
       .textContent,
-  ).toContain("220");
+  ).toContain("222");
   if (screen.queryByRole("button", { name: "Open settings" }))
     fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
   fireEvent.click(screen.getByText("Coordinates & distance"));
-  fireEvent.change(screen.getByRole("slider", { name: "Test distance" }), {
+  fireEvent.change(screen.getByRole("slider", { name: "Custom distance" }), {
     target: { value: "40" },
   });
   await tick();
   expect(screen.getByText("Working")).toBeTruthy();
   await route("#/settings?env=test");
-  expect(screen.getByRole("slider", { name: "Test accuracy" })).toBeTruthy();
-  fireEvent.change(screen.getByRole("spinbutton", { name: "Test latitude" }), {
-    target: { value: String(office.lat + 0.002) },
-  });
-  fireEvent.change(screen.getByRole("spinbutton", { name: "Test longitude" }), {
-    target: { value: String(office.lng) },
-  });
+  expect(screen.getByRole("slider", { name: "Custom accuracy" })).toBeTruthy();
+  fireEvent.change(
+    screen.getByRole("spinbutton", { name: "Custom latitude" }),
+    {
+      target: { value: String(office.lat + 0.002) },
+    },
+  );
+  fireEvent.change(
+    screen.getByRole("spinbutton", { name: "Custom longitude" }),
+    {
+      target: { value: String(office.lng) },
+    },
+  );
   fireEvent.click(screen.getByRole("button", { name: "Set location" }));
   await route("#/test");
   await tick();
@@ -315,12 +356,15 @@ it("test locations override browser GPS and advanced parameters live only in Set
         .textContent?.replace(/[^\d]/g, ""),
     ),
   ).toBeGreaterThan(200);
+  fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
   expect(
     screen
       .getByRole("link", { name: "Open fullscreen badge ↗" })
       .getAttribute("href"),
-  ).toBe("#/widget/test");
-  await route("#/production");
+  ).toBe("#/widget");
+  fireEvent.change(screen.getByRole("combobox", { name: "Location source" }), {
+    target: { value: "browser" },
+  });
   expect(
     screen.queryByText("Test", { selector: ".location-label" }),
   ).toBeNull();
@@ -333,13 +377,20 @@ it("test locations override browser GPS and advanced parameters live only in Set
   ).toBeGreaterThan(10000000);
 });
 it("test entry/departure confirmation and unreliable accuracy remain correct after simplifying the UI", async () => {
+  localStorage.setItem(
+    "gw:settings",
+    JSON.stringify({
+      locationSource: "custom",
+      testLocation: { ...office, lat: office.lat + 0.002 },
+    }),
+  );
   vi.useFakeTimers();
   location.hash = "#/test";
   render(<App />);
   if (screen.queryByRole("button", { name: "Open settings" }))
     fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
   fireEvent.click(screen.getByText("Coordinates & distance"));
-  fireEvent.change(screen.getByRole("slider", { name: "Test distance" }), {
+  fireEvent.change(screen.getByRole("slider", { name: "Custom distance" }), {
     target: { value: "40" },
   });
   await tick();
@@ -366,7 +417,7 @@ it("test entry/departure confirmation and unreliable accuracy remain correct aft
   if (screen.queryByRole("button", { name: "Open settings" }))
     fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
   fireEvent.click(screen.getByText("Coordinates & distance"));
-  fireEvent.change(screen.getByRole("slider", { name: "Test distance" }), {
+  fireEvent.change(screen.getByRole("slider", { name: "Custom distance" }), {
     target: { value: "180" },
   });
   await tick();
@@ -378,19 +429,29 @@ it("a fullscreen Test widget synchronizes cross-tab settings without replaying d
   const code = workplaceFor(office).code;
   localStorage.setItem(
     "gw:settings",
-    JSON.stringify({ distance: 40, accuracy: 15 }),
+    JSON.stringify({
+      locationSource: "custom",
+      testLocation: office,
+      distance: 40,
+      accuracy: 15,
+    }),
   );
-  location.hash = "#/widget/test";
+  location.hash = "#/widget";
   vi.useFakeTimers();
   render(<App />);
   await tick();
-  expect(screen.getByLabelText("Test widget")).toBeTruthy();
+  expect(screen.getByLabelText("Badge widget")).toBeTruthy();
   expect(screen.queryByRole("navigation")).toBeNull();
   expect(screen.getByText("Working")).toBeTruthy();
   await act(async () => {
     localStorage.setItem(
       "gw:settings",
-      JSON.stringify({ distance: 180, accuracy: 15 }),
+      JSON.stringify({
+        locationSource: "custom",
+        testLocation: { ...office, lat: office.lat + 0.003 },
+        distance: 180,
+        accuracy: 15,
+      }),
     );
     window.dispatchEvent(new StorageEvent("storage", { key: "gw:settings" }));
   });
@@ -411,13 +472,14 @@ it("fullscreen Production widgets use GPS even when test state is saved", async 
   localStorage.setItem(
     "gw:settings",
     JSON.stringify({
+      locationSource: "browser",
       distance: 0,
       accuracy: 15,
       testLocation: office,
       provider: "simulation",
     }),
   );
-  location.hash = "#/widget/production";
+  location.hash = "#/widget";
   render(<App />);
   await act(async () => {
     position(office.lat + 0.003);
@@ -425,7 +487,7 @@ it("fullscreen Production widgets use GPS even when test state is saved", async 
   await act(async () => {
     position(office.lat + 0.003);
   });
-  expect(screen.getByLabelText("Production widget")).toBeTruthy();
+  expect(screen.getByLabelText("Badge widget")).toBeTruthy();
   expect(screen.getByText("Off work")).toBeTruthy();
   expect(screen.queryByRole("navigation")).toBeNull();
   expect(screen.queryByRole("combobox")).toBeNull();
@@ -477,7 +539,7 @@ it("the distance slider reflects a custom Test pin and resets it when moved", as
   fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
   fireEvent.click(screen.getByText("Coordinates & distance"));
   const slider = screen.getByRole("slider", {
-    name: "Test distance",
+    name: "Custom distance",
   }) as HTMLInputElement;
   expect(Number(slider.value)).toBeGreaterThan(200);
   fireEvent.change(slider, { target: { value: "0" } });
@@ -486,7 +548,7 @@ it("the distance slider reflects a custom Test pin and resets it when moved", as
     screen.getByLabelText("Distance", { selector: ".badge-distance" })
       .textContent,
   ).toBe("0 m");
-  expect(
-    JSON.parse(localStorage.getItem("gw:settings")!).testLocation,
-  ).toBeNull();
+  const saved = JSON.parse(localStorage.getItem("gw:settings")!).testLocation;
+  expect(saved.lat).toBeCloseTo(office.lat);
+  expect(saved.lng).toBeCloseTo(office.lng);
 });

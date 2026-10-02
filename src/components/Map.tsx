@@ -106,7 +106,13 @@ export function MapView({
     if (!map || !group) return;
     group.clearLayers();
     if (!work) return;
-    map.setView([work.lat, work.lng], 17);
+    const bounds = L.latLng(work.lat, work.lng).toBounds(work.exit * 2);
+    if (current.current.sample)
+      bounds.extend([
+        current.current.sample.latitude,
+        current.current.sample.longitude,
+      ]);
+    map.fitBounds(bounds, { padding: [45, 45], maxZoom: 17 });
     L.circle([work.lat, work.lng], {
       radius: work.exit,
       color: "#e5bd84",
@@ -162,7 +168,7 @@ export function MapView({
       });
       marker
         .bindTooltip(
-          textLabel(sample.source === "simulation" ? "Test" : "You"),
+          textLabel(sample.source === "simulation" ? "Custom position" : "You"),
           { permanent: true, direction: "bottom", className: "location-label" },
         )
         .addTo(map);
@@ -175,29 +181,47 @@ export function MapView({
         current.current.onSetLocation?.({ lat: p.lat, lng: p.lng });
       });
       pointMarker.current = marker;
+      marker
+        .getElement()
+        ?.setAttribute(
+          "aria-label",
+          onSetLocation ? "Drag custom location pin" : "Current location pin",
+        );
       accuracyCircle.current = L.circle(point, {
-        radius: sample.accuracy,
+        radius: Number.isFinite(sample.accuracy)
+          ? Math.max(0, sample.accuracy)
+          : 0,
         color: "#8fdccc",
         weight: 1,
         fillOpacity: 0.08,
       }).addTo(map);
     } else if (!dragging.current) {
       pointMarker.current.setLatLng(point);
-      accuracyCircle.current?.setLatLng(point).setRadius(sample.accuracy);
+      accuracyCircle.current
+        ?.setLatLng(point)
+        .setRadius(
+          Number.isFinite(sample.accuracy) ? Math.max(0, sample.accuracy) : 0,
+        );
       pointMarker.current.setTooltipContent(
-        textLabel(sample.source === "simulation" ? "Test" : "You"),
+        textLabel(sample.source === "simulation" ? "Custom position" : "You"),
       );
       if (onSetLocation) pointMarker.current.dragging?.enable();
       else pointMarker.current.dragging?.disable();
     }
-    if (!positionSeen.current) {
+    if (!positionSeen.current || !map.getBounds().contains(point)) {
       positionSeen.current = true;
-      // Keep workplace and initial position together; later moves retain pans.
-      if (work)
-        map.fitBounds([[work.lat, work.lng], point], {
-          padding: [45, 45],
-          maxZoom: 17,
-        });
+      // The picker follows a searched position; the overview includes both.
+      if (onSetLocation) map.setView(point, 17);
+      else if (work)
+        map.fitBounds(
+          L.latLngBounds([[work.lat, work.lng], point]).extend(
+            L.latLng(work.lat, work.lng).toBounds(work.exit * 2),
+          ),
+          {
+            padding: [45, 45],
+            maxZoom: 17,
+          },
+        );
       else map.setView(point, 17);
     }
   }, [lat, lng, sample?.accuracy, sample?.source, onSetLocation === undefined]);
@@ -324,7 +348,9 @@ export function MapView({
           className="detail-map"
           ref={container}
           aria-label={
-            onSetLocation ? "Test map: click to set location" : "Street map"
+            onSetLocation
+              ? "Custom location map: drag pin or click to select"
+              : "Street map"
           }
         />
       </div>

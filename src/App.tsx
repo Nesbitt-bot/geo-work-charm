@@ -10,6 +10,7 @@ import { useBrowserLocation, useGeofence, useSettings } from "./store";
 import { Badge } from "./components/Badge";
 import { SettingsPage } from "./components/Settings";
 import { Debugging, type LogEntry } from "./components/Debugging";
+import { MapView } from "./components/Map";
 import {
   rememberPlace,
   savedPlaces,
@@ -25,53 +26,42 @@ export default function App() {
     window.addEventListener("hashchange", listener);
     return () => window.removeEventListener("hashchange", listener);
   }, []);
-  const initialTest =
-    hash.startsWith("#/test") ||
-    hash.startsWith("#/widget/test") ||
-    new URLSearchParams(hash.split("?")[1]).get("env") === "test";
-  const [mode, setMode] = useState<"production" | "test">(
-    initialTest ? "test" : "production",
-  );
-  const [tab, setTab] = useState<"production" | "test" | "debugging">(
-    hash.startsWith("#/debug")
-      ? "debugging"
-      : initialTest
-        ? "test"
-        : "production",
+  const [tab, setTab] = useState<"settings" | "debugging">(
+    hash.startsWith("#/debug") ? "debugging" : "settings",
   );
   const [flipped, setFlipped] = useState(
     hash.startsWith("#/settings") || hash.startsWith("#/debug"),
   );
   const [desktopDismissed, setDesktopDismissed] = useState(false);
   useEffect(() => {
-    if (hash.startsWith("#/test") || hash.startsWith("#/widget/test")) {
-      setMode("test");
-      setTab("test");
-    } else if (
-      hash.startsWith("#/production") ||
-      hash.startsWith("#/widget/production")
-    ) {
-      setMode("production");
-      setTab("production");
+    if (hash.startsWith("#/settings")) {
+      setTab("settings");
+      setFlipped(true);
     }
-    if (hash.startsWith("#/settings")) setFlipped(true);
+    if (
+      hash.startsWith("#/badge") ||
+      hash.startsWith("#/widget") ||
+      hash.startsWith("#/production") ||
+      hash.startsWith("#/test")
+    )
+      setFlipped(false);
     if (hash.startsWith("#/debug")) {
       setTab("debugging");
       setFlipped(true);
     }
   }, [hash]);
   const [config, update] = useSettings();
+  const [widget] = useState(() => location.hash.startsWith("#/widget"));
   const [manualStatus, setManualStatus] = useState<
     "WORKING" | "OFF_WORK" | null
   >(null);
   const [manualDeparture, setManualDeparture] = useState(0);
   useEffect(() => {
     setManualStatus(null);
-  }, [mode, config.doubleClickSwitch]);
+  }, [config.locationSource, config.doubleClickSwitch]);
   const browser = useBrowserLocation();
   const history = useMemo(savedPlaces, [config.custom]);
   const code = new URLSearchParams(hash.split("?")[1]).get("code");
-  const widget = hash.startsWith("#/widget");
   const work = useMemo(
     () =>
       widget && code
@@ -83,7 +73,10 @@ export default function App() {
   );
   const { state, sample, error, distance } = useGeofence(
     work,
-    { ...config, provider: mode === "test" ? "simulation" : "real" },
+    {
+      ...config,
+      provider: config.locationSource === "custom" ? "simulation" : "real",
+    },
     browser,
   );
   const [offlineReady, setOfflineReady] = useState(false);
@@ -105,8 +98,8 @@ export default function App() {
     [],
   );
   useEffect(() => {
-    log(`Mode: ${mode}`);
-  }, [mode, log]);
+    log(`Location source: ${config.locationSource}`);
+  }, [config.locationSource, log]);
   useEffect(
     () =>
       browser.subscribe((event) =>
@@ -143,24 +136,25 @@ export default function App() {
   const waitingMessage = !work
     ? "Demo badge"
     : !sample
-      ? "Waiting for location"
+      ? config.locationSource === "custom"
+        ? "Choose a custom location"
+        : "Waiting for location"
       : sample.accuracy > 150 ||
           sample.accuracy < 0 ||
           !Number.isFinite(sample.accuracy)
         ? "Low location accuracy"
         : "Near workplace boundary";
   const position =
-    mode === "test"
-      ? (sample ??
-        (config.testLocation
-          ? {
-              latitude: config.testLocation.lat,
-              longitude: config.testLocation.lng,
-              accuracy: config.accuracy,
-              timestamp: Date.now(),
-              source: "simulation" as const,
-            }
-          : null))
+    config.locationSource === "custom"
+      ? config.testLocation
+        ? {
+            latitude: config.testLocation.lat,
+            longitude: config.testLocation.lng,
+            accuracy: config.accuracy,
+            timestamp: Date.now(),
+            source: "simulation" as const,
+          }
+        : null
       : browser.sample;
   const palette = config.colors[config.theme];
   useEffect(() => {
@@ -184,6 +178,10 @@ export default function App() {
   } as CSSProperties;
   const front = useRef<HTMLDivElement>(null),
     back = useRef<HTMLDivElement>(null);
+  const backContent = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (backContent.current) backContent.current.scrollTop = 0;
+  }, [tab, flipped]);
   const focusStarted = useRef(false);
   useEffect(() => {
     if (!focusStarted.current) {
@@ -201,21 +199,15 @@ export default function App() {
     }, 750);
     return () => clearTimeout(timer);
   }, [flipped]);
-  const changeTab = (value: "production" | "test" | "debugging") => {
+  const changeTab = (value: "settings" | "debugging") => {
     setTab(value);
-    if (value !== "debugging") setMode(value);
-    const next =
-      value === "debugging"
-        ? `#/debug?env=${mode}`
-        : widget
-          ? `#/widget/${value}`
-          : `#/${value}`;
+    const next = value === "debugging" ? "#/debug" : "#/settings";
     window.history.replaceState(null, "", next);
     setHash(next);
   };
   const close = () => {
     setFlipped(false);
-    const next = widget ? `#/widget/${mode}` : `#/${mode}`;
+    const next = widget ? "#/widget" : "#/badge";
     window.history.replaceState(null, "", next);
     setHash(next);
   };
@@ -223,13 +215,9 @@ export default function App() {
     <main
       className={`badge-app theme-${config.theme}${widget ? " fullscreen-badge" : ""}`}
       style={themeStyle}
-      data-environment={mode}
+      data-location-source={config.locationSource}
       data-card-tone={darkCard ? "dark" : "light"}
-      aria-label={
-        widget
-          ? `${mode === "test" ? "Test" : "Production"} widget`
-          : "Work badge app"
-      }
+      aria-label={widget ? "Badge widget" : "Work badge app"}
     >
       {!desktopDismissed && (
         <aside className="desktop-prompt">
@@ -251,7 +239,7 @@ export default function App() {
             inert={flipped}
           >
             <Badge
-              key={mode}
+              key={config.locationSource}
               config={config}
               status={manualStatus ?? state.display}
               departure={state.departure}
@@ -278,8 +266,8 @@ export default function App() {
                 ↶
               </button>
             </div>
-            <nav className="mode-tabs" aria-label="Badge modes" role="tablist">
-              {(["production", "test", "debugging"] as const).map((value) => (
+            <nav className="mode-tabs" aria-label="Badge panels" role="tablist">
+              {(["settings", "debugging"] as const).map((value) => (
                 <button
                   key={value}
                   role="tab"
@@ -292,18 +280,38 @@ export default function App() {
             </nav>
             <div
               className="back-content"
+              ref={backContent}
               role="tabpanel"
               aria-label={`${tab} panel`}
             >
               {flipped &&
                 (tab === "debugging" ? (
-                  <Debugging logs={logs} onClear={() => setLogs([])} />
+                  <>
+                    <section
+                      className="debug-map"
+                      aria-label="Location overview"
+                    >
+                      <h2>Location</h2>
+                      <MapView
+                        work={work}
+                        sample={position}
+                        online={config.mapOnline}
+                      />
+                      <p className="settings-note">
+                        Work ≤ {work?.enter ?? 80} m · Off work ≥{" "}
+                        {work?.exit ?? 120} m
+                      </p>
+                      {!position && (
+                        <p className="settings-note">{waitingMessage}</p>
+                      )}
+                    </section>
+                    <Debugging logs={logs} onClear={() => setLogs([])} />
+                  </>
                 ) : (
                   <SettingsPage
                     config={config}
                     update={update}
                     work={work}
-                    test={tab === "test"}
                     sample={position}
                     onCompany={choose}
                     locationError={browser.error}

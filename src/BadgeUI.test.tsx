@@ -8,10 +8,19 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import App from "./App";
+import { Browser } from "leaflet";
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   location.hash = "#/production";
+  Object.defineProperty(Browser, "svg", { value: true, configurable: true });
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
   Object.defineProperty(navigator, "geolocation", {
     configurable: true,
     value: { watchPosition: vi.fn(() => 1), clearWatch: vi.fn() },
@@ -30,9 +39,17 @@ it("double-clicks without GPS or a workplace, replays off-work animation and sup
   fireEvent.doubleClick(badge);
   expect(screen.getByRole("status").textContent).toBe("Off work");
   expect(screen.getByLabelText("Clocking out")).toBeTruthy();
+  expect(screen.getByRole("img", { name: "Sunset transition" })).toBeTruthy();
+  expect(screen.queryByRole("img", { name: "Badge portrait" })).toBeNull();
+  expect(
+    screen
+      .getByRole("img", { name: "Off-work display" })
+      .parentElement?.classList.contains("offwork-scene"),
+  ).toBe(true);
   const firstImage = screen.getByRole("img", { name: "Off-work display" });
   fireEvent.doubleClick(badge);
   expect(screen.getByRole("status").textContent).toBe("Working");
+  expect(screen.getByRole("img", { name: "Sunrise transition" })).toBeTruthy();
   expect(screen.queryByLabelText("Clocking out")).toBeNull();
   fireEvent.keyDown(badge, { key: "Enter" });
   expect(screen.getByLabelText("Clocking out")).toBeTruthy();
@@ -136,22 +153,24 @@ it("starts with only the badge front and supplied defaults; opening the menu fli
     document.querySelector(".badge-card")?.classList.contains("is-flipped"),
   ).toBe(true);
   expect(screen.getAllByRole("tab").map((el) => el.textContent)).toEqual([
-    "Production",
-    "Test",
+    "Settings",
     "Debugging",
   ]);
   expect(
     screen.getAllByRole("heading", { level: 2 }).map((el) => el.textContent),
   ).toEqual(["Info", "Company location", "Additional"]);
   expect(
-    screen.queryByRole("combobox", { name: "Test location search" }),
+    screen.queryByRole("combobox", { name: "Custom location search" }),
   ).toBeNull();
-  fireEvent.click(screen.getByRole("tab", { name: "Test" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Location source" }), {
+    target: { value: "custom" },
+  });
   expect(
-    screen.getByRole("combobox", { name: "Test location search" }),
+    screen.getByRole("combobox", { name: "Custom location search" }),
   ).toBeTruthy();
-  const inputs = screen.getAllByRole("combobox");
-  expect(inputs[0].id).not.toBe(inputs[1].id);
+  expect(screen.getByRole("combobox", { name: "Company address" }).id).not.toBe(
+    screen.getByRole("combobox", { name: "Custom location search" }).id,
+  );
 });
 it("saves profile, optional department, theme and palette and restores them on reload", () => {
   render(<App />);
@@ -181,23 +200,36 @@ it("saves profile, optional department, theme and palette and restores them on r
   ).toBe("#aa77cc");
   expect(screen.getByRole("heading", { name: "Avery" })).toBeTruthy();
 });
-it("restores the chosen mode on reload and keeps Debugging free of settings", () => {
+it("restores the location source on reload and shows the map before logs in Debugging", () => {
   render(<App />);
   open();
-  fireEvent.click(screen.getByRole("tab", { name: "Test" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Location source" }), {
+    target: { value: "custom" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Return to badge" }));
-  expect(location.hash).toBe("#/test");
+  expect(location.hash).toBe("#/badge");
   cleanup();
   render(<App />);
   open();
   expect(
-    screen.getByRole("tab", { name: "Test" }).getAttribute("aria-selected"),
-  ).toBe("true");
+    (
+      screen.getByRole("combobox", {
+        name: "Location source",
+      }) as HTMLSelectElement
+    ).value,
+  ).toBe("custom");
   fireEvent.click(screen.getByRole("tab", { name: "Debugging" }));
   expect(screen.queryByRole("heading", { name: "Info" })).toBeNull();
   expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
+  expect(
+    screen
+      .getByRole("region", { name: "Location overview" })
+      .compareDocumentPosition(
+        screen.getByRole("region", { name: "Debugging logs" }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
 });
-it("shows logging only in Debugging and enables the persisted gravity-reflection switch", async () => {
+it("shows maps and logs in Debugging and enables the persisted gravity-reflection switch", async () => {
   render(<App />);
   open();
   fireEvent.click(screen.getByRole("checkbox", { name: "Gravity reflection" }));

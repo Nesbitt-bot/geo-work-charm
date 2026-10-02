@@ -248,22 +248,104 @@ input::placeholder {
   margin-bottom: 35px;
   flex-shrink: 0;
 }
-.profile-picture,
-.offwork-picture {
+.profile-picture {
   width: 100%;
   height: 100%;
   object-fit: cover;
   border-radius: 23px;
   display: block;
 }
+.offwork-scene {
+  position: absolute;
+  inset: 0;
+  background: #142820;
+}
 .offwork-picture {
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
-.portrait-frame.is-offwork {
-  padding: 14px;
-}
-.portrait-frame.celebrating .offwork-picture {
+.offwork-scene.celebrating .offwork-picture {
   animation: badge-celebrate 1s ease-in-out 3;
+}
+.is-offwork .badge-print {
+  justify-content: space-between;
+}
+.is-offwork .badge-header,
+.is-offwork .badge-footer {
+  color: #fff;
+  background: linear-gradient(#0007, transparent);
+}
+.is-offwork .badge-footer {
+  background: linear-gradient(transparent, #0007);
+}
+.is-offwork .badge-status,
+.is-offwork .badge-distance {
+  color: #fff;
+}
+.is-offwork .default-logo {
+  filter: invert(1);
+}
+.is-offwork .menu-button span {
+  background: #fff;
+}
+.is-offwork .menu-button:hover {
+  background: #ffffff1c;
+}
+.is-offwork .badge-ruler {
+  display: none;
+}
+.badge-transition {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  animation: sky-fade 1.2s ease both;
+}
+.badge-transition .transition-sun {
+  animation: sun-set 1.2s ease both;
+}
+.badge-transition.sunrise .transition-sun {
+  animation-name: sun-rise;
+}
+@keyframes sky-fade {
+  0% {
+    opacity: 0;
+  }
+  20%,
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes sun-set {
+  from {
+    transform: translateY(-100px);
+  }
+  to {
+    transform: translateY(200px);
+  }
+}
+@keyframes sun-rise {
+  from {
+    transform: translateY(200px);
+  }
+  to {
+    transform: translateY(-100px);
+  }
+}
+.debug-map h2 {
+  font-size: 16px;
+  margin: 20px 0 10px;
+}
+.debug-map .map-card,
+.debug-map .map-stage {
+  height: 300px;
 }
 .badge-person h1 {
   font-size: clamp(34px, 8vw, 46px);
@@ -872,10 +954,10 @@ details[open] > summary:before {
 @keyframes badge-celebrate {
   0%,
   100% {
-    transform: translateY(0) rotate(0);
+    transform: scale(1);
   }
   50% {
-    transform: translateY(-8px) rotate(-4deg);
+    transform: scale(1.04);
   }
 }
 @media (max-width: 767px) {
@@ -946,8 +1028,7 @@ details[open] > summary:before {
     margin-bottom: 8px;
     border-radius: 18px;
   }
-  .profile-picture,
-  .offwork-picture {
+  .profile-picture {
     border-radius: 12px;
   }
   .badge-person h1 {
@@ -975,8 +1056,13 @@ details[open] > summary:before {
   .foil-glare {
     transition: none;
   }
-  .portrait-frame.celebrating .offwork-picture {
+  .offwork-scene.celebrating .offwork-picture,
+  .badge-transition,
+  .transition-sun {
     animation: none;
+  }
+  .badge-transition {
+    display: none;
   }
   .badge-app {
     transition: none;

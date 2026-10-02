@@ -7,6 +7,7 @@ import {
   rememberPlace,
   savedPlaces,
   workplaceFor,
+  reversePlace,
   type Place,
 } from "../location/geocode";
 import { downloadStreets, saveStreetPack } from "../geo/streets";
@@ -20,6 +21,7 @@ import {
 } from "../media";
 import { WorkplaceSearch } from "./WorkplaceSearch";
 import { MapView } from "./Map";
+import { simulatedSample } from "../geo/nearby";
 
 function ImageField({
   slot,
@@ -93,7 +95,7 @@ export function SettingsPage({
   config,
   update,
   work,
-  test,
+
   sample,
   locationError,
   retryLocation,
@@ -104,7 +106,7 @@ export function SettingsPage({
   config: Settings;
   update: (patch: Partial<Settings>) => void;
   work?: Workplace;
-  test: boolean;
+
   sample: LocationSample | null;
   locationError: string;
   retryLocation: () => void;
@@ -118,6 +120,35 @@ export function SettingsPage({
     [lng, setLng] = useState(String(config.testLocation?.lng ?? ""));
   const [message, setMessage] = useState(""),
     [downloading, setDownloading] = useState(false);
+  const reverseRequest = useRef<AbortController | null>(null);
+  const latestConfig = useRef(config);
+  latestConfig.current = config;
+  useEffect(() => () => reverseRequest.current?.abort(), []);
+  useEffect(() => {
+    if (config.locationSource !== "custom") reverseRequest.current?.abort();
+  }, [config.locationSource]);
+  const setCustomLocation = (place: Place, resolveAddress = false) => {
+    reverseRequest.current?.abort();
+    update({ testLocation: place });
+    if (!resolveAddress || !config.searchOnline) return;
+    const request = new AbortController();
+    reverseRequest.current = request;
+    void reversePlace(place, request.signal)
+      .then((named) => {
+        const current = latestConfig.current.testLocation;
+        if (
+          named &&
+          !request.signal.aborted &&
+          latestConfig.current.locationSource === "custom" &&
+          current?.lat === place.lat &&
+          current.lng === place.lng
+        )
+          update({ testLocation: named });
+      })
+      .catch(() => {
+        /* Coordinates remain available offline or if lookup fails. */
+      });
+  };
   const rangeDistance =
     work && config.testLocation
       ? Math.min(
@@ -136,7 +167,7 @@ export function SettingsPage({
           ),
         )
       : config.distance;
-  const [mapOpen, setMapOpen] = useState(false);
+
   useEffect(() => {
     setEnter(String(work?.enter ?? 80));
     setExit(String(work?.exit ?? 120));
@@ -284,29 +315,72 @@ export function SettingsPage({
             </select>
           </label>
         )}
-        {test && (
+        <label>
+          Current position
+          <select
+            aria-label="Location source"
+            value={config.locationSource}
+            onChange={(event) =>
+              update({
+                locationSource: event.target
+                  .value as Settings["locationSource"],
+              })
+            }
+          >
+            <option value="browser">Browser location</option>
+            <option value="custom">Custom location</option>
+          </select>
+        </label>
+        {config.locationSource === "custom" && (
           <fieldset className="test-location-section">
-            <legend>
-              Current location <span>Test only</span>
-            </legend>
+            <legend>Custom location</legend>
             <WorkplaceSearch
-              label="Test location search"
-              selectionMessage="Test location set."
+              label="Custom location search"
+              selectionMessage="Custom location set."
               placeholder={
-                config.testLocation?.name || "Search your simulated location"
+                config.testLocation?.name || "Search your current location"
               }
               sample={null}
               compact
               showHistory={false}
               online={config.searchOnline}
               onChoose={(place) => {
-                update({ testLocation: place });
-                onLog("Test location selected");
+                setCustomLocation(place);
+                onLog("Custom location selected");
               }}
             />
             {config.testLocation && (
               <p className="selected-address">{config.testLocation.name}</p>
             )}
+            <MapView
+              work={work}
+              sample={
+                sample ??
+                (work
+                  ? {
+                      latitude: work.lat,
+                      longitude: work.lng,
+                      accuracy: 0,
+                      timestamp: Date.now(),
+                      source: "simulation",
+                    }
+                  : null)
+              }
+              online={config.mapOnline}
+              onSetLocation={(point) => {
+                setCustomLocation(
+                  {
+                    name: `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`,
+                    ...point,
+                  },
+                  true,
+                );
+                onLog("Custom location selected on map");
+              }}
+            />
+            <p className="settings-note">
+              Drag the pin or tap the map to set your position.
+            </p>
             <details>
               <summary>Coordinates & distance</summary>
               <form
@@ -321,20 +395,18 @@ export function SettingsPage({
                     setMessage("Enter valid latitude and longitude.");
                     return;
                   }
-                  update({
-                    testLocation: {
-                      name: "Custom test location",
-                      lat: Number(lat),
-                      lng: Number(lng),
-                    },
+                  setCustomLocation({
+                    name: "Custom location",
+                    lat: Number(lat),
+                    lng: Number(lng),
                   });
-                  onLog("Test coordinates updated");
+                  onLog("Custom coordinates updated");
                 }}
               >
                 <label>
                   Latitude
                   <input
-                    aria-label="Test latitude"
+                    aria-label="Custom latitude"
                     type="number"
                     step="any"
                     min="-90"
@@ -346,7 +418,7 @@ export function SettingsPage({
                 <label>
                   Longitude
                   <input
-                    aria-label="Test longitude"
+                    aria-label="Custom longitude"
                     type="number"
                     step="any"
                     min="-180"
@@ -363,23 +435,32 @@ export function SettingsPage({
                   {config.testLocation ? "Custom" : `${config.distance} m`}
                 </output>
                 <input
-                  aria-label="Test distance"
+                  aria-label="Custom distance"
                   type="range"
                   min="0"
                   max="1000"
                   value={rangeDistance}
-                  onChange={(event) =>
-                    update({
-                      distance: Number(event.target.value),
-                      testLocation: null,
-                    })
-                  }
+                  disabled={!work}
+                  onChange={(event) => {
+                    if (!work) return;
+                    const distance = Number(event.target.value);
+                    const point = simulatedSample(
+                      work,
+                      distance,
+                      config.accuracy,
+                    );
+                    setCustomLocation({
+                      name: `${distance} m from company`,
+                      lat: point.latitude,
+                      lng: point.longitude,
+                    });
+                  }}
                 />
               </label>
               <label>
                 Accuracy <output>{config.accuracy} m</output>
                 <input
-                  aria-label="Test accuracy"
+                  aria-label="Custom accuracy"
                   type="range"
                   min="0"
                   max="250"
@@ -445,31 +526,6 @@ export function SettingsPage({
           onSaved={(revision) => media("offwork", revision)}
           onError={setMessage}
         />
-        <details
-          className="map-details"
-          onToggle={(event) => setMapOpen(event.currentTarget.open)}
-        >
-          <summary>Map preview</summary>
-          {mapOpen && (
-            <MapView
-              work={work}
-              sample={sample}
-              online={config.mapOnline}
-              onSetLocation={
-                test
-                  ? (point) =>
-                      update({
-                        testLocation: {
-                          name: "Map location",
-                          lat: point.lat,
-                          lng: point.lng,
-                        },
-                      })
-                  : undefined
-              }
-            />
-          )}
-        </details>
       </section>
       <section className="settings-section">
         <div className="section-heading">
@@ -516,7 +572,9 @@ export function SettingsPage({
         <label className="setting-toggle">
           <span>
             Double-tap to switch status
-            <small>Overrides location until disabled or mode changes.</small>
+            <small>
+              Overrides location until disabled or location source changes.
+            </small>
           </span>
           <input
             aria-label="Double-tap to switch status"
@@ -582,7 +640,7 @@ export function SettingsPage({
         </p>
         <a
           className="widget-link"
-          href={`#/widget/${test ? "test" : "production"}`}
+          href="#/widget"
           target="_blank"
           rel="noreferrer"
         >

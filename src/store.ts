@@ -10,14 +10,15 @@ import {
 } from "./core/geofence";
 import type { LocationSample, Source } from "./location/types";
 import { browserProvider } from "./location/providers";
-import { simulatedSample } from "./geo/nearby";
 import { rememberPlace, savedPlaces, workplaceFor } from "./location/geocode";
 export interface Settings {
   code: string;
   provider: "manual" | "real" | "simulation";
+  locationSource: "browser" | "custom";
   distance: number;
   accuracy: number;
   custom: Workplace | null;
+  // Retain the saved key so existing selected Test positions migrate intact.
   testLocation: { name: string; lat: number; lng: number } | null;
   searchOnline: boolean;
   mapOnline: boolean;
@@ -40,6 +41,7 @@ export interface Settings {
 const defaults: Settings = {
   code: "",
   provider: "manual",
+  locationSource: "browser",
   distance: 220,
   accuracy: 15,
   custom: null,
@@ -128,6 +130,15 @@ function settings(): Settings {
   return {
     ...defaults,
     ...s,
+    locationSource:
+      s.locationSource === "custom" ||
+      (s.locationSource !== "browser" &&
+        (location.hash.startsWith("#/test") ||
+          location.hash.startsWith("#/widget/test") ||
+          new URLSearchParams(location.hash.split("?")[1]).get("env") ===
+            "test"))
+        ? "custom"
+        : "browser",
     provider: ["manual", "real", "simulation"].includes(s.provider)
       ? s.provider
       : "manual",
@@ -363,17 +374,15 @@ export function useGeofence(
       const tick = () => {
         const settings = configRef.current;
         const point = settings.testLocation;
-        consume(
-          point
-            ? {
-                longitude: point.lng,
-                latitude: point.lat,
-                accuracy: settings.accuracy,
-                timestamp: Date.now(),
-                source: "simulation",
-              }
-            : simulatedSample(work, settings.distance, settings.accuracy),
-        );
+        if (point)
+          consume({
+            longitude: point.lng,
+            latitude: point.lat,
+            accuracy: settings.accuracy,
+            timestamp: Date.now(),
+            source: "simulation",
+          });
+        else unavailable("Choose a custom location.");
       };
       tick();
       const id = setInterval(tick, 1100);

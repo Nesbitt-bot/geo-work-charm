@@ -2,7 +2,7 @@
 
 A mobile-first work badge with a reversible settings card. The front uses the supplied portrait, the official GitHub mark, **Trance-0**, and **Vibe coding engineer** by default; department is optional. The upper-right three-line menu flips the card 180° to its settings. Desktop visitors see a dismissible recommendation to use a phone. There is no login backend: opening the app loads your local badge.
 
-On mobile, the card fills the available viewport with safe-area margins and follows browser toolbar resizing. Double-tap (or desktop double-click) the badge to force Off work and play its animation without a workplace or GPS fix; repeat to switch to Working. The focused badge also supports Enter/Space. **Additional → Double-tap to switch status** is enabled by default and saved locally. The manual display override lasts for this session until the option is disabled or Production/Test mode changes; it never writes a GPS or attendance event.
+On mobile, the card fills the available viewport with safe-area margins and follows browser toolbar resizing. Double-tap (or desktop double-click) the badge to force Off work and play its animation without a workplace or GPS fix; repeat to switch to Working. The focused badge also supports Enter/Space. **Additional → Double-tap to switch status** is enabled by default and saved locally. The manual display override lasts for this session until the option is disabled or the location source changes; it never writes a GPS or attendance event. Off-work artwork covers the entire card, with the menu and status overlaid. SVG sunset/sunrise transitions accompany work/off-work changes; initialization does not replay them. Reduced-motion preferences disable these animations.
 
 ## Quickstart
 
@@ -19,19 +19,20 @@ npm run build
 npm run preview
 ```
 
-No API key is needed. Location is requested immediately on page load, even before a workplace is selected. Browser permission is required on HTTPS / localhost. Denied GPS stays unavailable in Production; it never silently becomes simulated. Settings includes a permission retry button.
+No API key is needed. Location is requested immediately on page load, even before a workplace is selected. Browser permission is required on HTTPS / localhost. Denied GPS stays unavailable when Browser location is selected; it never silently becomes a custom position. Settings includes a permission retry button.
 
 Routes use static-host-compatible hash routing:
 
-- `/` or `/#/production` — badge front using browser GPS
-- `/#/test` — badge front using the saved Test location
+- `/` or `/#/badge` — badge front using the saved location source
 - `/#/settings` — settings back
-- `/#/debug?env=production` or `/#/debug?env=test` — logging-only back tab
-- `/#/widget/production` and `/#/widget/test` — standalone badges
+- `/#/debug` — current location map followed by session logs
+- `/#/widget` — standalone badge using the same saved settings
 
-The back has **Production / Test / Debugging** tabs. Production and Test share the same Info, Company location and Additional sections. Test adds one separate Current location search/picker, plus optional coordinates, distance and accuracy. Choosing a Test position never alters Production GPS or company history. Debugging shows only bounded, in-memory session logs; it does not record GPS coordinates.
+The back has **Settings / Debugging** tabs. Settings retains Info, Company location and Additional sections. **Current position → Browser location / Custom location** replaces separate Production/Test modes, and persists across reloads and widgets. Custom location provides address search, a draggable map pin, map click selection, and optional coordinates, distance and accuracy. No current position is invented before you choose one. Map selection saves exact coordinates immediately; when online suggestions are enabled, Photon reverse lookup adds a nearby address label without snapping the pin. Coordinates remain usable if lookup fails or the app is offline. Custom selection never changes company history or browser GPS. Existing legacy routes remain usable, and saved Test locations are retained.
 
-**Info** edits the profile photo, company logo, name, optional department and job title. **Company location** contains OSM-compatible address search, work/off-work thresholds and the off-work image (the original clock-out SVG by default). A collapsible map preview remains available. **Additional** contains light/dark themes, configurable accent/background/card colors, motion reflection, online options, permission retry, offline maps and a standalone badge link.
+Debugging shows the map first, including the company marker, both work/off-work range circles, the current browser/custom position and its accuracy circle. Bounded, in-memory session logs follow. The overview map is read-only; the custom picker in Settings edits your position. Switching panels scrolls back to the top.
+
+**Info** edits the profile photo, company logo, name, optional department and job title. **Company location** contains OSM-compatible address search, the current-position source and custom picker, work/off-work thresholds and the off-work image (the original clock-out SVG by default). **Additional** contains light/dark themes, configurable accent/background/card colors, motion reflection, double-tap status switching, online options, permission retry, offline maps and a standalone badge link.
 
 Uploaded photos/logos/off-work images are kept as image Blobs in **IndexedDB**, not sent to a server. PNG, JPEG, WebP, GIF and SVG files up to 8 MB are supported; invalid images are rejected. Revision tokens in localStorage keep open badges synchronized. Reset restores the shipped defaults. Default assets are bundled and precached for offline startup.
 
@@ -43,13 +44,13 @@ Chinese POIs may be indexed without the city prefix or with middle-dot separator
 
 ## Keyless and offline operation
 
-The badge front makes no map or address requests. Opening a company picker uses keyless Photon suggestions; opening Map preview uses OpenStreetMap.de tiles unless disabled. Leaflet also renders saved local street data. Legacy extracts are coverage, not preset addresses.
+The badge front makes no map or address requests. Opening address search uses keyless Photon suggestions; opening Debugging or the custom picker uses OpenStreetMap.de tiles unless disabled. Leaflet also renders saved local street data. Legacy extracts are coverage, not preset addresses.
 
-Production remains browser-GPS-only. Test uses the separately chosen Current location; coordinates, the distance slider and dragging a Test marker remain available inside its settings. The location accuracy circle is visible in map preview.
+Browser location uses GPS only. Custom location uses the explicitly chosen current position; coordinates, the distance slider and dragging a pin are available inside Settings. The location accuracy circle is visible in Debugging and the custom picker.
 
 Settings → Save workplace map offline retrieves a bounded OSM extract around the chosen workplace through Overpass and saves up to three regional maps. Coverage is roughly 0.008 degrees across. The public server can time out; failures preserve saved data. Settings → Online street map controls keyless OpenStreetMap.de tiles, which are not bulk-downloaded or cached.
 
-The production build includes a service worker that downloads the app HTML, JavaScript, CSS, and bundled street data on the first successful visit. Wait for **Offline app ready** in Settings, then reload Production, Test, and widget hash routes without a connection. This requires HTTPS or localhost, supported service workers, and retained browser storage. Development mode does not install the worker. Browser cache eviction or clearing site data requires another online visit. Updates install in the background and become active after all tabs using the old version close.
+The production build includes a service worker that downloads the app HTML, JavaScript, CSS, and bundled street data on the first successful visit. Wait for **Offline app ready** in Settings, then reload badge, settings, debugging, and widget hash routes without a connection. This requires HTTPS or localhost, supported service workers, and retained browser storage. Development mode does not install the worker. Browser cache eviction or clearing site data requires another online visit. Updates install in the background and become active after all tabs using the old version close.
 
 Arbitrary worldwide street-address search cannot run offline without a local address dataset. Selected-address history covers only chosen workplaces; no bundled city list supplies suggestions. Comprehensive offline address datasets and worldwide street maps are much larger. Offline street rendering covers bundled/downloaded neighborhoods only; areas beyond those extracts need another download. Missing building names or paths reflect OSM coverage, not invented geography.
 
@@ -57,7 +58,7 @@ Keyless online options include [Photon](https://photon.komoot.io/) for worldwide
 
 ## Live demo and screenshots
 
-**Live URL: not published yet.** After you explicitly publish a repository and enable Pages, the expected URL is `https://<owner>.github.io/geo-work-charm/`.
+Live URL: [Geo Work Charm](https://nesbitt-bot.github.io/geo-work-charm/).
 
 Screenshot placeholders: desktop neighborhood, mobile dashboard, standalone working widget, clock-out animation. The project includes the actual responsive UI; no fabricated screenshots or deployment claim.
 
@@ -75,21 +76,21 @@ src/geo/streets.ts          OSM geometry conversion, local packs, bounded downlo
 src/geo/data/*.json         Real offline demo-neighborhood street/building extracts
 src/geo/data/NOTICE.md      OSM attribution and ODbL database license notice
 scripts/download-streets.mjs  Reproduce/update the shipped OSM extracts
-src/geo/nearby.ts           Distance-based Test position generation
+src/geo/nearby.ts           Distance-based custom position generation
 src/store.ts               State lifecycle, persistence and cross-tab settings
-src/components/Map.tsx     Minimal Leaflet map + draggable Test location
+src/components/Map.tsx     Leaflet overview + draggable custom position
 src/components/WorkplaceSearch.tsx  Minimal address search and suggestions
-src/components/Settings.tsx  Shared sectioned Production/Test settings
+src/components/Settings.tsx  Sectioned settings with location source picker
 src/components/Badge.tsx     Portrait badge and motion/foil rendering
 src/components/Debugging.tsx  Session logging panel
 src/media.ts               IndexedDB image persistence and previews
 offline-plugin.ts          Build-time versioned app-shell service worker
 src/offline.ts             Base-aware service worker registration
 src/animations/index.tsx   Replaceable animation registry
-src/App.tsx                Production, Test, Settings and fullscreen widget routes
+src/App.tsx                Badge, Settings, Debugging and fullscreen routes
 ```
 
-The badge front shows identity and a small work/off-work status. A confirmed departure displays the configured off-work image; initialization does not replay a celebration. The settings back contains the location and map details.
+The working badge shows identity and a small status. Off work displays the configured image across the full badge; initialization does not replay a celebration. Settings edits location and profile details; Debugging shows the location overview and logs.
 
 ## Geofence semantics
 
@@ -102,13 +103,13 @@ The badge front shows identity and a small work/off-work status. A confirmed dep
 - Persist only stable state, separately by demo code and actual source. Candidates and events are never persisted. Reopening a page does not replay a stored transition; a session must first observe a reliable working state before arming a new departure animation.
 - Sample source changes clear confirmation candidates; real and simulated stable states are isolated.
 
-Production processes each GPS callback directly rather than relying on React-rendered samples, so batched callbacks cannot lose confirmation fixes. Choosing a workplace after GPS has arrived evaluates that existing fix immediately. After a provider error or poor accuracy, the first recovered reliable fix re-establishes status without a false clock-out. Neutral charm labels distinguish a missing workplace, missing position, poor accuracy and an undecided boundary position.
+Browser location processes each GPS callback directly rather than relying on React-rendered samples, so batched callbacks cannot lose confirmation fixes. Choosing a workplace after GPS has arrived evaluates that existing fix immediately. After a provider error or poor accuracy, the first recovered reliable fix re-establishes status without a false clock-out. Neutral charm labels distinguish a missing workplace, missing position, poor accuracy and an undecided boundary position.
 
 `evaluate` and `reduceSample` are pure; `metersFrom` uses Turf great-circle distance. The classifier has a documented future `booleanPointInPolygon` seam, not a pretended polygon implementation. These circles indicate proximity, **not building entry or employment attendance**.
 
 ## Location, China and coordinate systems
 
-All domain/provider samples use WGS84 latitude/longitude, accuracy in meters and epoch-millisecond timestamp. Browser geolocation requests high accuracy, zero cached age and a timeout. The active app uses browser geolocation directly, even if old AMap environment values remain present. The user must explicitly select simulation if real location is unavailable. Watches, timers and late callbacks are cleaned up/ignored when switching providers or users. GPS availability and the browser/OS positioning provider's own network requirements remain device-dependent.
+All domain/provider samples use WGS84 latitude/longitude, accuracy in meters and epoch-millisecond timestamp. Browser geolocation requests high accuracy, zero cached age and a timeout. The active app uses browser geolocation directly, even if old AMap environment values remain present. The user must explicitly select Custom location if browser location is unavailable. Watches, timers and late callbacks are cleaned up/ignored when switching providers or users. GPS availability and the browser/OS positioning provider's own network requirements remain device-dependent.
 
 The unused legacy AMap adapter uses `convert:true`, returning GCJ-02 positions that are approximately inverted to WGS84. The included iterative conversion is a common mathematical approximation, not survey-grade or a guarantee about every provider/device's coordinate behavior. Outside the broad mainland-China bounding box conversion is identity; borders and special regions need production validation. Browser positioning can vary by operating system and provider, especially in China; verify its datum rather than applying a second conversion blindly. Offline coordinate entry and Photon/OSM use WGS84. No BD-09 support.
 
@@ -129,7 +130,7 @@ Asset links and service worker registration respect Vite's base. Workplace selec
 
 ## Privacy and persistence
 
-Settings, your chosen custom workplace, provider preference, simulation values, per-workplace/per-source stable state, up to 80 chosen addresses and up to three downloaded map extracts live in localStorage. App assets and bundled maps live in Cache Storage. Suggestion responses have a separate five-minute session cache for repeated queries; they never become default workplaces. **No raw GPS samples, timestamps, trajectory, or location history are persisted.** Explicitly choosing your current location as a workplace saves that single coordinate by request. Selected results and map pins save workplace coordinates and selected search text. Downloaded street extracts record the requested area, not a movement history. Clearing this site's storage resets these records and removes its offline copy. There is no upload API or analytics. Photon receives typed/submitted search text; Overpass receives explicitly requested bounds; online OpenStreetMap.de tiles receive tile requests. Map tiles and address suggestions default online; turn them off to work with saved data. A remembered real-location provider may resume on reload subject to browser permission.
+Settings, your chosen custom workplace, location source, custom current position, per-workplace/per-source stable state, up to 80 chosen addresses and up to three downloaded map extracts live in localStorage. App assets and bundled maps live in Cache Storage. Suggestion responses have a separate five-minute session cache for repeated queries; they never become default workplaces. **No raw GPS samples, timestamps, trajectory, or location history are persisted.** Explicitly choosing your current location as a workplace saves that single coordinate by request. Selected results and map pins save workplace coordinates and selected search text. Downloaded street extracts record the requested area, not a movement history. Clearing this site's storage resets these records and removes its offline copy. There is no upload API or analytics. Photon receives typed/submitted search text and explicitly selected custom coordinates for reverse lookup; Overpass receives explicitly requested bounds; online OpenStreetMap.de tiles receive tile requests. Map tiles and address suggestions default online; turn them off to work with saved data. A remembered real-location provider may resume on reload subject to browser permission.
 
 ## Limitations and future backend path
 
@@ -153,7 +154,7 @@ These references are reading pointers, not claims of affiliation, compatibility 
 
 ## Verification record
 
-Validated with Node 26: dependency installation, ESLint, TypeScript, 65 passing Vitest tests, and a production build with `/geo-work-charm/` base. Tests cover geofence behavior, debounced suggestions, Chinese IME, keyboard selection, Chinese POI query/ranking, no preset addresses, restoring latest selected history, cancelled requests, real OSM map content, geometry conversion, bounded map download/cache behavior, service worker scope/cache isolation, and static-host `Vary: Origin` compatibility. The test command disables Node's experimental native Web Storage so jsdom supplies browser storage consistently.
+Validated with Node 26: dependency installation, ESLint, TypeScript, 76 passing Vitest tests, and a production build with `/geo-work-charm/` base. Tests cover geofence behavior, debounced suggestions, Chinese IME, keyboard selection, Chinese POI query/ranking, no preset addresses, restoring latest selected history, cancelled requests, real OSM map content, geometry conversion, bounded map download/cache behavior, service worker scope/cache isolation, and static-host `Vary: Origin` compatibility. The test command disables Node's experimental native Web Storage so jsdom supplies browser storage consistently.
 
 Live desktop/mobile verification typed `长沙万达总部国际 C区` without pressing Search, received `万达·总部国际·C区` ahead of B区, selected it, and reloaded with that address as the default. Both search and street tiles were on by default. Only C区 entered history. The mobile layout had no horizontal overflow at 375 px. All displayed suggestions and coordinates came from live Photon/OSM data, not a hardcoded lookup table.
 

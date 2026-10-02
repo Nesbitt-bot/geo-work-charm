@@ -93,6 +93,26 @@ export function Badge({
   };
   const [celebrating, setCelebrating] = useState(false),
     seen = useRef({ departure, manualDeparture });
+  const previousStatus = useRef(status);
+  const previousManualDeparture = useRef(manualDeparture);
+  const [transition, setTransition] = useState<"sunset" | "sunrise" | null>(
+    null,
+  );
+  useEffect(() => {
+    const previous = previousStatus.current;
+    previousStatus.current = status;
+    const manualClockout = manualDeparture > previousManualDeparture.current;
+    previousManualDeparture.current = manualDeparture;
+    if (
+      ((previous === "WORKING" || manualClockout) && status === "OFF_WORK") ||
+      (previous === "OFF_WORK" && status === "WORKING")
+    ) {
+      setTransition(status === "OFF_WORK" ? "sunset" : "sunrise");
+      const timer = setTimeout(() => setTransition(null), 1200);
+      return () => clearTimeout(timer);
+    }
+    setTransition(null);
+  }, [status, manualDeparture]);
   useEffect(() => {
     const changed =
       departure > seen.current.departure ||
@@ -154,7 +174,7 @@ export function Badge({
   return (
     <section
       ref={face}
-      className={`badge-front ${config.foil ? "has-foil" : ""}`}
+      className={`badge-front ${config.foil ? "has-foil" : ""} ${status === "OFF_WORK" ? "is-offwork" : ""}`}
       aria-label="Work badge"
       tabIndex={config.doubleClickSwitch ? 0 : undefined}
       aria-keyshortcuts={config.doubleClickSwitch ? "Enter Space" : undefined}
@@ -194,6 +214,19 @@ export function Badge({
         }
       }}
     >
+      {status === "OFF_WORK" && (
+        <div
+          className={`offwork-scene ${celebrating ? "celebrating" : ""}`}
+          aria-label={celebrating ? "Clocking out" : undefined}
+        >
+          <img
+            key={`off-${departure}-${manualDeparture}`}
+            className="offwork-picture"
+            src={offwork}
+            alt="Off-work display"
+          />
+        </div>
+      )}
       <div className="badge-print">
         <header className="badge-header">
           <img
@@ -214,34 +247,24 @@ export function Badge({
             <span />
           </button>
         </header>
-        <div className="badge-person">
-          <div
-            aria-label={celebrating ? "Clocking out" : undefined}
-            className={`portrait-frame ${status === "OFF_WORK" ? "is-offwork" : ""} ${celebrating ? "celebrating" : ""}`}
-          >
-            <img
-              key={
-                status === "OFF_WORK"
-                  ? `off-${departure}-${manualDeparture}`
-                  : "portrait"
-              }
-              className={
-                status === "OFF_WORK" ? "offwork-picture" : "profile-picture"
-              }
-              src={status === "OFF_WORK" ? offwork : avatar}
-              alt={
-                status === "OFF_WORK" ? "Off-work display" : "Badge portrait"
-              }
-            />
+        {status !== "OFF_WORK" && (
+          <div className="badge-person">
+            <div className="portrait-frame">
+              <img
+                className="profile-picture"
+                src={avatar}
+                alt="Badge portrait"
+              />
+            </div>
+            <h1>{config.profile.name || "Trance-0"}</h1>
+            <p className="job-title">
+              {config.profile.title || "Vibe coding engineer"}
+            </p>
+            {config.profile.department && (
+              <p className="department">{config.profile.department}</p>
+            )}
           </div>
-          <h1>{config.profile.name || "Trance-0"}</h1>
-          <p className="job-title">
-            {config.profile.title || "Vibe coding engineer"}
-          </p>
-          {config.profile.department && (
-            <p className="department">{config.profile.department}</p>
-          )}
-        </div>
+        )}
         <footer className="badge-footer">
           <span
             className={`badge-status ${status.toLowerCase()}`}
@@ -262,6 +285,32 @@ export function Badge({
         </footer>
         <div className="badge-ruler" aria-hidden="true" />
       </div>
+      {transition && (
+        <svg
+          className={`badge-transition ${transition}`}
+          viewBox="0 0 400 800"
+          preserveAspectRatio="xMidYMid slice"
+          aria-label={
+            transition === "sunset" ? "Sunset transition" : "Sunrise transition"
+          }
+          role="img"
+        >
+          <rect
+            width="400"
+            height="800"
+            fill={transition === "sunset" ? "#e89564" : "#f4d7a0"}
+          />
+          <circle
+            className="transition-sun"
+            cx="200"
+            cy="400"
+            r="80"
+            fill="#fff1b5"
+          />
+          <path d="M0 480 Q100 430 200 490 T400 470 V800 H0Z" fill="#30483f" />
+          <path d="M0 550 Q130 480 260 560 T400 540 V800 H0Z" fill="#1c302b" />
+        </svg>
+      )}
       {config.foil && (
         <>
           <div className="foil-spectrum" aria-hidden="true" />

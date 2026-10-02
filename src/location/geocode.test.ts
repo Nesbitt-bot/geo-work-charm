@@ -6,6 +6,7 @@ import {
   rememberPlace,
   savedPlaces,
   searchLocalPlaces,
+  reversePlace,
 } from "./geocode";
 beforeEach(() => {
   localStorage.clear();
@@ -13,6 +14,38 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
 });
 afterEach(() => vi.unstubAllGlobals());
+it("labels a dragged point without snapping its coordinates to a nearby address", async () => {
+  vi.mocked(fetch).mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        features: [
+          {
+            geometry: { coordinates: [113, 28] },
+            properties: { name: "Office", city: "Changsha" },
+          },
+        ],
+      }),
+    ),
+  );
+  const point = { lat: 28.20546, lng: 112.96593 };
+  expect(await reversePlace(point)).toEqual({
+    ...point,
+    name: "Near Office, Changsha",
+  });
+  expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain(
+    `/reverse?lat=${point.lat}&lon=${point.lng}`,
+  );
+  expect(savedPlaces()).toEqual([]);
+});
+it("leaves unnamed points usable and rejects unavailable reverse lookups", async () => {
+  vi.mocked(fetch)
+    .mockResolvedValueOnce(new Response(JSON.stringify({ features: [] })))
+    .mockRejectedValueOnce(Error("offline"));
+  expect(await reversePlace({ lat: 28, lng: 113 })).toBeNull();
+  await expect(reversePlace({ lat: 28, lng: 113 })).rejects.toThrow("offline");
+  expect(await reversePlace({ lat: 95, lng: 113 })).toBeNull();
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
 it("has no preset cities or addresses; coordinates and selected history work offline", () => {
   expect(searchLocalPlaces("北京")).toEqual([]);
   expect(savedPlaces()).toEqual([]);

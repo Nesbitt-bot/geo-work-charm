@@ -97,9 +97,15 @@ function queriesFor(query: string): string[] {
       : withoutCity;
   return [...new Set([plain, tail, base])].filter(Boolean).slice(0, 3);
 }
-async function photon(query: string, signal?: AbortSignal): Promise<Place[]> {
+async function photon(
+  query: string,
+  signal?: AbortSignal,
+  point?: { lat: number; lng: number },
+): Promise<Place[]> {
   const response = await fetch(
-    `https://photon.komoot.io/api/?q=${encodeURIComponent(query.trim())}&limit=6`,
+    point
+      ? `https://photon.komoot.io/reverse?lat=${point.lat}&lon=${point.lng}&limit=1`
+      : `https://photon.komoot.io/api/?q=${encodeURIComponent(query.trim())}&limit=6`,
     {
       headers: {
         Accept: "application/json",
@@ -143,6 +149,15 @@ async function photon(query: string, signal?: AbortSignal): Promise<Place[]> {
     });
   }
   return results;
+}
+export async function reversePlace(
+  point: { lat: number; lng: number },
+  signal?: AbortSignal,
+): Promise<Place | null> {
+  if (!validCoordinate(point.lat, point.lng)) return null;
+  const nearby = (await photon("", signal, point))[0];
+  // Keep the selected coordinates; reverse lookup labels a nearby feature.
+  return nearby ? { ...point, name: `Near ${nearby.name}` } : null;
 }
 
 export async function geocodeAddress(
