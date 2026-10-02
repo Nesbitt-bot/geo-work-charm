@@ -8,6 +8,7 @@ import type { Settings } from "../store";
 import type { Status } from "../core/geofence";
 import { DEFAULT_MEDIA, useBadgeImage } from "../media";
 import { OfficeScene } from "./OfficeScene";
+import { PixelPortrait } from "./PixelPortrait";
 
 export function Badge({
   config,
@@ -258,11 +259,7 @@ export function Badge({
         {status !== "OFF_WORK" && (
           <div className="badge-person">
             <div className="portrait-frame">
-              <img
-                className="profile-picture"
-                src={avatar}
-                alt="Badge portrait"
-              />
+              <PixelPortrait src={avatar} />
             </div>
             <h1>{config.profile.name || "Trance-0"}</h1>
             <p className="job-title">

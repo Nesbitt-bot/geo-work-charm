@@ -33,6 +33,7 @@ export interface Settings {
   theme: "light" | "dark";
   foil: boolean;
   doubleClickSwitch: boolean;
+  colorsVersion: number;
   colors: {
     light: { background: string; card: string; accent: string };
     dark: { background: string; card: string; accent: string };
@@ -59,9 +60,10 @@ const defaults: Settings = {
   theme: "light",
   foil: false,
   doubleClickSwitch: true,
+  colorsVersion: 1,
   colors: {
-    light: { background: "#eff2ec", card: "#ffffff", accent: "#476b57" },
-    dark: { background: "#101713", card: "#1c2821", accent: "#b6d2bd" },
+    light: { background: "#e7f4e9", card: "#ffffff", accent: "#23804c" },
+    dark: { background: "#0b1b24", card: "#142c35", accent: "#75e5aa" },
   },
 };
 
@@ -119,17 +121,29 @@ function settings(): Settings {
     typeof value === "string" && /^#[\da-f]{6}$/i.test(value)
       ? value
       : fallback;
-  const palette = (mode: "light" | "dark") => ({
-    background: color(
-      s.colors?.[mode]?.background,
-      defaults.colors[mode].background,
-    ),
-    card: color(s.colors?.[mode]?.card, defaults.colors[mode].card),
-    accent: color(s.colors?.[mode]?.accent, defaults.colors[mode].accent),
-  });
+  const oldColors = {
+    light: { background: "#eff2ec", card: "#ffffff", accent: "#476b57" },
+    dark: { background: "#101713", card: "#1c2821", accent: "#b6d2bd" },
+  };
+  const palette = (mode: "light" | "dark") => {
+    const field = (key: "background" | "card" | "accent") => {
+      const value = s.colors?.[mode]?.[key];
+      return s.colorsVersion !== 1 &&
+        typeof value === "string" &&
+        value.toLowerCase() === oldColors[mode][key]
+        ? defaults.colors[mode][key]
+        : color(value, defaults.colors[mode][key]);
+    };
+    return {
+      background: field("background"),
+      card: field("card"),
+      accent: field("accent"),
+    };
+  };
   return {
     ...defaults,
     ...s,
+    colorsVersion: 1,
     locationSource:
       s.locationSource === "custom" ||
       (s.locationSource !== "browser" &&

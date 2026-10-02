@@ -33,6 +33,33 @@ afterEach(() => {
 });
 const open = () =>
   fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+it("refreshes the old default palette while retaining custom theme colors", () => {
+  localStorage.setItem(
+    "gw:settings",
+    JSON.stringify({
+      theme: "dark",
+      colors: {
+        dark: { background: "#101713", card: "#1c2821", accent: "#aa77cc" },
+      },
+    }),
+  );
+  render(<App />);
+  const style = (document.querySelector(".badge-app") as HTMLElement).style;
+  expect(style.getPropertyValue("--page-bg")).toBe("#0b1b24");
+  expect(style.getPropertyValue("--card-bg")).toBe("#142c35");
+  expect(style.getPropertyValue("--accent")).toBe("#aa77cc");
+  open();
+  fireEvent.change(screen.getByLabelText("accent color"), {
+    target: { value: "#476b57" },
+  });
+  cleanup();
+  render(<App />);
+  expect(
+    (
+      document.querySelector(".badge-app") as HTMLElement
+    ).style.getPropertyValue("--accent"),
+  ).toBe("#476b57");
+});
 it("animates inline SVG lights through both directions and cleans up the overlay", () => {
   vi.useFakeTimers();
   try {
