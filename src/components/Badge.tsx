@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import type { Settings } from "../store";
 import type { Status } from "../core/geofence";
 import { DEFAULT_MEDIA, useBadgeImage } from "../media";
@@ -9,14 +14,18 @@ export function Badge({
   waitingMessage,
   distance,
   departure,
+  manualDeparture,
   onMenu,
+  onSwitchStatus,
 }: {
   config: Settings;
   status: Status;
   waitingMessage: string;
   distance: number | null;
   departure: number;
+  manualDeparture: number;
   onMenu: () => void;
+  onSwitchStatus: () => void;
 }) {
   const avatar = useBadgeImage(
     "avatar",
@@ -30,18 +39,72 @@ export function Badge({
     DEFAULT_MEDIA.offwork,
   );
   const face = useRef<HTMLElement>(null);
+  const lastTap = useRef<{ at: number; x: number; y: number } | null>(null);
+  const tapStart = useRef<{
+    at: number;
+    x: number;
+    y: number;
+    id: number;
+  } | null>(null);
+  const lastTouchSwitch = useRef(-Infinity);
+  const interactive = (target: EventTarget | null) =>
+    target instanceof Element &&
+    !!target.closest("button, a, input, select, textarea");
+  const pointerDown = (event: ReactPointerEvent) => {
+    if (
+      !config.doubleClickSwitch ||
+      event.pointerType === "mouse" ||
+      !event.isPrimary ||
+      interactive(event.target)
+    ) {
+      tapStart.current = null;
+      lastTap.current = null;
+      return;
+    }
+    tapStart.current = {
+      at: Date.now(),
+      x: event.clientX,
+      y: event.clientY,
+      id: event.pointerId,
+    };
+  };
+  const pointerUp = (event: ReactPointerEvent) => {
+    const start = tapStart.current;
+    tapStart.current = null;
+    if (!start || start.id !== event.pointerId || interactive(event.target))
+      return;
+    const at = Date.now(),
+      x = event.clientX,
+      y = event.clientY;
+    if (at - start.at > 350 || Math.hypot(x - start.x, y - start.y) > 18) {
+      lastTap.current = null;
+      return;
+    }
+    const previous = lastTap.current;
+    if (
+      previous &&
+      at - previous.at <= 350 &&
+      Math.hypot(x - previous.x, y - previous.y) <= 32
+    ) {
+      lastTap.current = null;
+      lastTouchSwitch.current = at;
+      onSwitchStatus();
+    } else lastTap.current = { at, x, y };
+  };
   const [celebrating, setCelebrating] = useState(false),
-    seen = useRef(departure);
+    seen = useRef({ departure, manualDeparture });
   useEffect(() => {
-    if (departure > seen.current) {
-      seen.current = departure;
+    const changed =
+      departure > seen.current.departure ||
+      manualDeparture > seen.current.manualDeparture;
+    seen.current = { departure, manualDeparture };
+    if (changed && status === "OFF_WORK") {
       setCelebrating(true);
       const timer = setTimeout(() => setCelebrating(false), 3200);
       return () => clearTimeout(timer);
     }
-    seen.current = departure;
     setCelebrating(false);
-  }, [departure]);
+  }, [departure, manualDeparture, status]);
   useEffect(() => {
     const element = face.current;
     if (!element) return;
@@ -93,6 +156,43 @@ export function Badge({
       ref={face}
       className={`badge-front ${config.foil ? "has-foil" : ""}`}
       aria-label="Work badge"
+      tabIndex={config.doubleClickSwitch ? 0 : undefined}
+      aria-keyshortcuts={config.doubleClickSwitch ? "Enter Space" : undefined}
+      onPointerDown={pointerDown}
+      onPointerMove={(event) => {
+        const start = tapStart.current;
+        if (
+          start &&
+          Math.hypot(event.clientX - start.x, event.clientY - start.y) > 18
+        ) {
+          tapStart.current = null;
+          lastTap.current = null;
+        }
+      }}
+      onPointerUp={pointerUp}
+      onPointerCancel={() => {
+        tapStart.current = null;
+        lastTap.current = null;
+      }}
+      onDoubleClick={(event) => {
+        if (
+          config.doubleClickSwitch &&
+          !interactive(event.target) &&
+          Date.now() - lastTouchSwitch.current > 500
+        )
+          onSwitchStatus();
+      }}
+      onKeyDown={(event) => {
+        if (
+          config.doubleClickSwitch &&
+          event.target === event.currentTarget &&
+          !event.repeat &&
+          (event.key === "Enter" || event.key === " ")
+        ) {
+          event.preventDefault();
+          onSwitchStatus();
+        }
+      }}
     >
       <div className="badge-print">
         <header className="badge-header">
@@ -120,7 +220,11 @@ export function Badge({
             className={`portrait-frame ${status === "OFF_WORK" ? "is-offwork" : ""} ${celebrating ? "celebrating" : ""}`}
           >
             <img
-              key={status === "OFF_WORK" ? `off-${departure}` : "portrait"}
+              key={
+                status === "OFF_WORK"
+                  ? `off-${departure}-${manualDeparture}`
+                  : "portrait"
+              }
               className={
                 status === "OFF_WORK" ? "offwork-picture" : "profile-picture"
               }

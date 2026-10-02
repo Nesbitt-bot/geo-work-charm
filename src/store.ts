@@ -31,6 +31,7 @@ export interface Settings {
   };
   theme: "light" | "dark";
   foil: boolean;
+  doubleClickSwitch: boolean;
   colors: {
     light: { background: string; card: string; accent: string };
     dark: { background: string; card: string; accent: string };
@@ -55,6 +56,7 @@ const defaults: Settings = {
   },
   theme: "light",
   foil: false,
+  doubleClickSwitch: true,
   colors: {
     light: { background: "#eff2ec", card: "#ffffff", accent: "#476b57" },
     dark: { background: "#101713", card: "#1c2821", accent: "#b6d2bd" },
@@ -158,6 +160,7 @@ function settings(): Settings {
     },
     theme: s.theme === "dark" ? "dark" : "light",
     foil: s.foil === true,
+    doubleClickSwitch: s.doubleClickSwitch !== false,
     colors: { light: palette("light"), dark: palette("dark") },
   };
 }

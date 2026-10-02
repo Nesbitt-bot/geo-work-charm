@@ -154,6 +154,7 @@ input::placeholder {
   pointer-events: none;
 }
 .badge-front {
+  touch-action: manipulation;
   height: 100%;
   position: relative;
   isolation: isolate;
@@ -170,6 +171,10 @@ input::placeholder {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+.badge-front:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
 }
 .badge-header {
   height: 94px;
@@ -873,6 +878,23 @@ details[open] > summary:before {
     transform: translateY(-8px) rotate(-4deg);
   }
 }
+@media (max-width: 767px) {
+  .badge-app {
+    --mobile-top: max(8px, env(safe-area-inset-top, 0px));
+    --mobile-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    min-height: 100dvh;
+    padding: var(--mobile-top) max(8px, env(safe-area-inset-right, 0px))
+      var(--mobile-bottom) max(8px, env(safe-area-inset-left, 0px));
+  }
+  .card-scene {
+    width: 100%;
+    height: calc(100svh - var(--mobile-top) - var(--mobile-bottom));
+    height: calc(100dvh - var(--mobile-top) - var(--mobile-bottom));
+  }
+  .portrait-frame {
+    max-width: 100%;
+  }
+}
 @media (min-width: 768px) {
   .desktop-prompt {
     display: flex;
@@ -906,6 +928,42 @@ details[open] > summary:before {
   }
   .badge-person {
     justify-content: center;
+  }
+}
+@media (max-height: 450px) {
+  .badge-header {
+    height: 54px;
+    padding: 8px 20px;
+  }
+  .badge-slot {
+    top: 12px;
+  }
+  .badge-person {
+    padding-bottom: 0;
+  }
+  .portrait-frame {
+    width: clamp(60px, 25dvh, 110px);
+    margin-bottom: 8px;
+    border-radius: 18px;
+  }
+  .profile-picture,
+  .offwork-picture {
+    border-radius: 12px;
+  }
+  .badge-person h1 {
+    font-size: 24px;
+    margin-bottom: 5px;
+  }
+  .job-title {
+    font-size: 12px;
+  }
+  .department {
+    margin-top: 4px;
+    font-size: 10px;
+  }
+  .badge-footer {
+    min-height: 40px;
+    padding: 10px 20px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

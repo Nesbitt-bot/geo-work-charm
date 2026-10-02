@@ -24,6 +24,104 @@ afterEach(() => {
 });
 const open = () =>
   fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+it("double-clicks without GPS or a workplace, replays off-work animation and supports keyboard switching", () => {
+  render(<App />);
+  const badge = screen.getByRole("region", { name: "Work badge" });
+  fireEvent.doubleClick(badge);
+  expect(screen.getByRole("status").textContent).toBe("Off work");
+  expect(screen.getByLabelText("Clocking out")).toBeTruthy();
+  const firstImage = screen.getByRole("img", { name: "Off-work display" });
+  fireEvent.doubleClick(badge);
+  expect(screen.getByRole("status").textContent).toBe("Working");
+  expect(screen.queryByLabelText("Clocking out")).toBeNull();
+  fireEvent.keyDown(badge, { key: "Enter" });
+  expect(screen.getByLabelText("Clocking out")).toBeTruthy();
+  expect(screen.getByRole("img", { name: "Off-work display" })).not.toBe(
+    firstImage,
+  );
+});
+it("disables and persists the shortcut, restores automatic status and ignores the menu", () => {
+  render(<App />);
+  const badge = screen.getByRole("region", { name: "Work badge" });
+  fireEvent.doubleClick(screen.getByRole("button", { name: "Open settings" }));
+  expect(screen.getByRole("status").textContent).toBe("Demo badge");
+  fireEvent.doubleClick(badge);
+  open();
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Double-tap to switch status" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Return to badge" }));
+  expect(screen.getByRole("status").textContent).toBe("Demo badge");
+  fireEvent.doubleClick(badge);
+  expect(screen.getByRole("status").textContent).toBe("Demo badge");
+  cleanup();
+  render(<App />);
+  fireEvent.doubleClick(screen.getByRole("region", { name: "Work badge" }));
+  expect(screen.getByRole("status").textContent).toBe("Demo badge");
+  open();
+  expect(
+    (
+      screen.getByRole("checkbox", {
+        name: "Double-tap to switch status",
+      }) as HTMLInputElement
+    ).checked,
+  ).toBe(false);
+});
+it("handles mobile double-taps once and excludes dragging, cancellation and long presses", () => {
+  class TestPointerEvent extends MouseEvent {
+    pointerType: string;
+    pointerId: number;
+    isPrimary: boolean;
+    constructor(
+      type: string,
+      options: MouseEventInit & {
+        pointerType?: string;
+        pointerId?: number;
+        isPrimary?: boolean;
+      },
+    ) {
+      super(type, options);
+      this.pointerType = options.pointerType ?? "touch";
+      this.pointerId = options.pointerId ?? 1;
+      this.isPrimary = options.isPrimary ?? true;
+    }
+  }
+  vi.stubGlobal("PointerEvent", TestPointerEvent);
+  vi.useFakeTimers();
+  try {
+    render(<App />);
+    const badge = screen.getByRole("region", { name: "Work badge" });
+    const point = { clientX: 150, clientY: 300 };
+    const tap = () => {
+      fireEvent.pointerDown(badge, point);
+      fireEvent.pointerUp(badge, point);
+    };
+    tap();
+    act(() => vi.advanceTimersByTime(100));
+    tap();
+    fireEvent.doubleClick(badge);
+    expect(screen.getByRole("status").textContent).toBe("Off work");
+    expect(screen.getByLabelText("Clocking out")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(600));
+    fireEvent.pointerDown(badge, point);
+    fireEvent.pointerMove(badge, { clientX: 200, clientY: 300 });
+    fireEvent.pointerUp(badge, point);
+    tap();
+    expect(screen.getByRole("status").textContent).toBe("Off work");
+    fireEvent.pointerDown(badge, point);
+    fireEvent.pointerCancel(badge, point);
+    tap();
+    expect(screen.getByRole("status").textContent).toBe("Off work");
+    act(() => vi.advanceTimersByTime(600));
+    fireEvent.pointerDown(badge, point);
+    act(() => vi.advanceTimersByTime(500));
+    fireEvent.pointerUp(badge, point);
+    tap();
+    expect(screen.getByRole("status").textContent).toBe("Off work");
+  } finally {
+    vi.useRealTimers();
+  }
+});
 it("starts with only the badge front and supplied defaults; opening the menu flips to sectioned settings", () => {
   render(<App />);
   expect(screen.getByRole("heading", { name: "Trance-0" })).toBeTruthy();

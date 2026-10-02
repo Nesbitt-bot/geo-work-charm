@@ -2,6 +2,8 @@
 
 A mobile-first work badge with a reversible settings card. The front uses the supplied portrait, the official GitHub mark, **Trance-0**, and **Vibe coding engineer** by default; department is optional. The upper-right three-line menu flips the card 180° to its settings. Desktop visitors see a dismissible recommendation to use a phone. There is no login backend: opening the app loads your local badge.
 
+On mobile, the card fills the available viewport with safe-area margins and follows browser toolbar resizing. Double-tap (or desktop double-click) the badge to force Off work and play its animation without a workplace or GPS fix; repeat to switch to Working. The focused badge also supports Enter/Space. **Additional → Double-tap to switch status** is enabled by default and saved locally. The manual display override lasts for this session until the option is disabled or Production/Test mode changes; it never writes a GPS or attendance event.
+
 ## Quickstart
 
 Requires Node.js 22+ and npm.

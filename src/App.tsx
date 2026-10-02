@@ -61,6 +61,13 @@ export default function App() {
     }
   }, [hash]);
   const [config, update] = useSettings();
+  const [manualStatus, setManualStatus] = useState<
+    "WORKING" | "OFF_WORK" | null
+  >(null);
+  const [manualDeparture, setManualDeparture] = useState(0);
+  useEffect(() => {
+    setManualStatus(null);
+  }, [mode, config.doubleClickSwitch]);
   const browser = useBrowserLocation();
   const history = useMemo(savedPlaces, [config.custom]);
   const code = new URLSearchParams(hash.split("?")[1]).get("code");
@@ -120,6 +127,13 @@ export default function App() {
   useEffect(() => {
     if (error && error !== "Waiting for location.") log(error, "warn");
   }, [error, log]);
+  const switchStatus = () => {
+    if (!config.doubleClickSwitch) return;
+    const next = manualStatus === "OFF_WORK" ? "WORKING" : "OFF_WORK";
+    setManualStatus(next);
+    if (next === "OFF_WORK") setManualDeparture((value) => value + 1);
+    log(`Manual badge: ${next} · location override`);
+  };
   const choose = (place: Place) => {
     rememberPlace(place);
     const custom = workplaceFor(place);
@@ -237,12 +251,15 @@ export default function App() {
             inert={flipped}
           >
             <Badge
+              key={mode}
               config={config}
-              status={state.display}
+              status={manualStatus ?? state.display}
               departure={state.departure}
+              manualDeparture={manualDeparture}
               waitingMessage={waitingMessage}
               distance={distance}
               onMenu={() => setFlipped(true)}
+              onSwitchStatus={switchStatus}
             />
           </div>
           <div

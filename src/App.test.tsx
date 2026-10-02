@@ -79,6 +79,52 @@ const tick = async (ms = 2300) =>
   act(async () => {
     vi.advanceTimersByTime(ms);
   });
+it("manual clock-out bypasses working GPS, survives fixes and resets when modes change", async () => {
+  localStorage.setItem("gw:settings", JSON.stringify({ distance: 0 }));
+  render(<App />);
+  await act(async () => position());
+  expect(screen.getByRole("status").textContent).toBe("Working");
+  fireEvent.doubleClick(screen.getByRole("region", { name: "Work badge" }));
+  expect(screen.getByRole("status").textContent).toBe("Off work");
+  expect(screen.getByLabelText("Clocking out")).toBeTruthy();
+  await act(async () => {
+    position();
+    position();
+  });
+  expect(screen.getByRole("status").textContent).toBe("Off work");
+  await act(async () =>
+    failure?.({
+      code: 1,
+      message: "Permission denied",
+    } as GeolocationPositionError),
+  );
+  expect(screen.getByRole("status").textContent).toBe("Off work");
+  fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Test" }));
+  fireEvent.click(screen.getByRole("button", { name: "Return to badge" }));
+  expect(screen.getByRole("status").textContent).not.toBe("Off work");
+  await route("#/production");
+  await act(async () => position());
+  expect(screen.getByRole("status").textContent).toBe("Working");
+});
+it("double-click replays clock-out when GPS already says off work and disabling resumes GPS", async () => {
+  render(<App />);
+  await act(async () => position(office.lat + 0.003));
+  expect(screen.getByRole("status").textContent).toBe("Off work");
+  expect(screen.queryByLabelText("Clocking out")).toBeNull();
+  const badge = screen.getByRole("region", { name: "Work badge" });
+  fireEvent.doubleClick(badge);
+  expect(screen.getByLabelText("Clocking out")).toBeTruthy();
+  fireEvent.doubleClick(badge);
+  expect(screen.getByRole("status").textContent).toBe("Working");
+  fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Double-tap to switch status" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Return to badge" }));
+  expect(screen.getByRole("status").textContent).toBe("Off work");
+  expect(screen.queryByLabelText("Clocking out")).toBeNull();
+});
 it("starts browser location before any workplace exists and exposes exactly three navigation links", () => {
   localStorage.clear();
   render(<App />);
@@ -93,7 +139,7 @@ it("starts browser location before any workplace exists and exposes exactly thre
   expect(
     screen.getByRole("combobox", { name: "Company address" }),
   ).toBeTruthy();
-  expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+  expect(screen.getAllByRole("checkbox")).toHaveLength(4);
   expect(screen.queryByRole("slider")).toBeNull();
   expect(
     screen.queryByLabelText("Distance", { selector: ".badge-distance" }),

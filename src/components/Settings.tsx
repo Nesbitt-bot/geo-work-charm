@@ -515,6 +515,20 @@ export function SettingsPage({
         </div>
         <label className="setting-toggle">
           <span>
+            Double-tap to switch status
+            <small>Overrides location until disabled or mode changes.</small>
+          </span>
+          <input
+            aria-label="Double-tap to switch status"
+            type="checkbox"
+            checked={config.doubleClickSwitch}
+            onChange={(event) =>
+              update({ doubleClickSwitch: event.target.checked })
+            }
+          />
+        </label>
+        <label className="setting-toggle">
+          <span>
             Gravity / holographic reflection
             <small>Tilt your phone or move your pointer.</small>
           </span>
