@@ -33,6 +33,50 @@ afterEach(() => {
 });
 const open = () =>
   fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+it("provides independent live pixel sliders for portrait and logo, saves them and restores them", () => {
+  render(<App />);
+  open();
+  const avatar = screen.getByRole("slider", {
+    name: "Profile photo pixel size",
+  }) as HTMLInputElement;
+  const logo = screen.getByRole("slider", {
+    name: "Company logo pixel size",
+  }) as HTMLInputElement;
+  expect(avatar.value).toBe("30");
+  expect(logo.value).toBe("30");
+  expect(screen.getAllByText("18 × 18 px")).toHaveLength(2);
+  fireEvent.change(avatar, { target: { value: "8" } });
+  fireEvent.change(logo, { target: { value: "16" } });
+  expect(screen.getByText("64 × 64 px")).toBeTruthy();
+  expect(screen.getByText("32 × 32 px")).toBeTruthy();
+  expect(JSON.parse(localStorage.getItem("gw:settings")!).pixelSize).toEqual({
+    avatar: 8,
+    logo: 16,
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Return to badge" }));
+  expect(
+    (
+      document.querySelector(".portrait-frame") as HTMLElement
+    ).style.getPropertyValue("--portrait-pixels"),
+  ).toBe("64");
+  cleanup();
+  render(<App />);
+  open();
+  expect(
+    (
+      screen.getByRole("slider", {
+        name: "Profile photo pixel size",
+      }) as HTMLInputElement
+    ).value,
+  ).toBe("8");
+  expect(
+    (
+      screen.getByRole("slider", {
+        name: "Company logo pixel size",
+      }) as HTMLInputElement
+    ).value,
+  ).toBe("16");
+});
 it("refreshes the old default palette while retaining custom theme colors", () => {
   localStorage.setItem(
     "gw:settings",

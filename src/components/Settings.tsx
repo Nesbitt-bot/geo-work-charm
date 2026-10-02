@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Workplace } from "../core/geofence";
 import { validCoordinate, metersFrom } from "../core/geofence";
 import type { Settings } from "../store";
@@ -23,6 +23,8 @@ import { WorkplaceSearch } from "./WorkplaceSearch";
 import { MapView } from "./Map";
 import { simulatedSample } from "../geo/nearby";
 import pixelFontLicense from "../assets/fonts/OFL.txt?raw";
+import { PixelImage } from "./PixelPortrait";
+import { pixelResolution } from "../pixel";
 
 function ImageField({
   slot,
@@ -31,6 +33,8 @@ function ImageField({
   fallback,
   onSaved,
   onError,
+  kernel,
+  onKernel,
 }: {
   slot: MediaSlot;
   title: string;
@@ -38,57 +42,98 @@ function ImageField({
   fallback: string;
   onSaved: (revision: string) => void;
   onError: (message: string) => void;
+  kernel?: number;
+  onKernel?: (value: number) => void;
 }) {
   const url = useBadgeImage(slot, revision, fallback);
   const saved = useRef(onSaved);
   saved.current = onSaved;
   return (
-    <div className="image-field">
-      <img src={url} alt={`${title} preview`} />
-      <div>
-        <span>{title}</span>
-        <label className="upload-button">
-          Upload
-          <input
-            aria-label={`Upload ${title.toLowerCase()}`}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-            onChange={async (event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              try {
-                await storeImage(slot, file);
-                saved.current(
-                  `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-                );
-              } catch (error) {
-                onError(
-                  error instanceof Error
-                    ? error.message
-                    : "Image could not be saved.",
-                );
-              }
-              event.target.value = "";
-            }}
-          />
-        </label>
-        {revision && (
-          <button
-            type="button"
-            className="text-button"
-            onClick={async () => {
-              try {
-                await removeImage(slot);
-                onSaved("");
-              } catch {
-                onError("Image could not be reset.");
-              }
-            }}
+    <div className="media-editor">
+      <div className="image-field">
+        {kernel !== undefined ? (
+          <div
+            className={`image-preview ${slot}`}
+            style={
+              { "--portrait-pixels": pixelResolution(kernel) } as CSSProperties
+            }
           >
-            Reset
-          </button>
+            <PixelImage
+              src={url}
+              kernel={kernel}
+              fit={slot === "logo" ? "contain" : "cover"}
+              className={`pixel-preview ${slot === "avatar" ? "profile-picture" : "pixel-logo"}`}
+              alt={`${title} preview`}
+            />
+          </div>
+        ) : (
+          <img src={url} alt={`${title} preview`} />
         )}
+        <div>
+          <span>{title}</span>
+          <label className="upload-button">
+            Upload
+            <input
+              aria-label={`Upload ${title.toLowerCase()}`}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                try {
+                  await storeImage(slot, file);
+                  saved.current(
+                    `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                  );
+                } catch (error) {
+                  onError(
+                    error instanceof Error
+                      ? error.message
+                      : "Image could not be saved.",
+                  );
+                }
+                event.target.value = "";
+              }}
+            />
+          </label>
+          {revision && (
+            <button
+              type="button"
+              className="text-button"
+              onClick={async () => {
+                try {
+                  await removeImage(slot);
+                  onSaved("");
+                } catch {
+                  onError("Image could not be reset.");
+                }
+              }}
+            >
+              Reset
+            </button>
+          )}
+        </div>
       </div>
+      {kernel !== undefined && onKernel && (
+        <label className="pixel-slider">
+          <span>
+            Pixel size <output>{kernel}</output>
+          </span>
+          <input
+            type="range"
+            min="1"
+            max="64"
+            step="1"
+            value={kernel}
+            aria-label={`${title} pixel size`}
+            onChange={(event) => onKernel(Number(event.target.value))}
+          />
+          <span className="pixel-resolution">
+            {pixelResolution(kernel)} × {pixelResolution(kernel)} px
+          </span>
+          <small className="pixel-help">Smaller size = more detail.</small>
+        </label>
+      )}
     </div>
   );
 }
@@ -240,6 +285,10 @@ export function SettingsPage({
           fallback={DEFAULT_MEDIA.avatar}
           onSaved={(revision) => media("avatar", revision)}
           onError={setMessage}
+          kernel={config.pixelSize.avatar}
+          onKernel={(value) =>
+            update({ pixelSize: { ...config.pixelSize, avatar: value } })
+          }
         />
         <ImageField
           title="Company logo"
@@ -248,6 +297,10 @@ export function SettingsPage({
           fallback={DEFAULT_MEDIA.logo}
           onSaved={(revision) => media("logo", revision)}
           onError={setMessage}
+          kernel={config.pixelSize.logo}
+          onKernel={(value) =>
+            update({ pixelSize: { ...config.pixelSize, logo: value } })
+          }
         />
         <label>
           Name

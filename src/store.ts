@@ -11,6 +11,7 @@ import {
 import type { LocationSample, Source } from "./location/types";
 import { browserProvider } from "./location/providers";
 import { rememberPlace, savedPlaces, workplaceFor } from "./location/geocode";
+import { DEFAULT_PIXEL_SIZE, pixelSize } from "./pixel";
 export interface Settings {
   code: string;
   provider: "manual" | "real" | "simulation";
@@ -34,6 +35,7 @@ export interface Settings {
   foil: boolean;
   doubleClickSwitch: boolean;
   colorsVersion: number;
+  pixelSize: { avatar: number; logo: number };
   colors: {
     light: { background: string; card: string; accent: string };
     dark: { background: string; card: string; accent: string };
@@ -61,6 +63,7 @@ const defaults: Settings = {
   foil: false,
   doubleClickSwitch: true,
   colorsVersion: 1,
+  pixelSize: { avatar: DEFAULT_PIXEL_SIZE, logo: DEFAULT_PIXEL_SIZE },
   colors: {
     light: { background: "#e7f4e9", card: "#ffffff", accent: "#23804c" },
     dark: { background: "#0b1b24", card: "#142c35", accent: "#75e5aa" },
@@ -144,6 +147,10 @@ function settings(): Settings {
     ...defaults,
     ...s,
     colorsVersion: 1,
+    pixelSize: {
+      avatar: pixelSize(s.pixelSize?.avatar),
+      logo: pixelSize(s.pixelSize?.logo),
+    },
     locationSource:
       s.locationSource === "custom" ||
       (s.locationSource !== "browser" &&

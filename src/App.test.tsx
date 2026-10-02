@@ -168,7 +168,9 @@ it("starts browser location before any workplace exists and exposes two tabs", (
     screen.getByRole("combobox", { name: "Company address" }),
   ).toBeTruthy();
   expect(screen.getAllByRole("checkbox")).toHaveLength(4);
-  expect(screen.queryByRole("slider")).toBeNull();
+  expect(
+    screen.getAllByRole("slider").map((el) => el.getAttribute("aria-label")),
+  ).toEqual(["Profile photo pixel size", "Company logo pixel size"]);
   expect(
     screen.queryByLabelText("Distance", { selector: ".badge-distance" }),
   ).toBeNull();
