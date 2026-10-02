@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import avatar from "./assets/default-avatar.jpg";
+import avatar from "./assets/default-avatar-pixel.png";
 import logo from "./assets/github.svg";
 import offwork from "./assets/off-work.svg";
 export { default as OCTICONS_LICENSE } from "./assets/OCTICONS-LICENSE.txt?raw";

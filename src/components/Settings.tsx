@@ -22,6 +22,7 @@ import {
 import { WorkplaceSearch } from "./WorkplaceSearch";
 import { MapView } from "./Map";
 import { simulatedSample } from "../geo/nearby";
+import pixelFontLicense from "../assets/fonts/OFL.txt?raw";
 
 function ImageField({
   slot,
@@ -650,9 +651,11 @@ export function SettingsPage({
           <summary>Asset credits</summary>
           <p className="settings-note">
             GitHub mark: official Octicons, MIT. Default portrait: supplied
-            reference. Off-work artwork: original project SVG.
+            reference. Off-work artwork: original project SVG. Pixel font:
+            Silkscreen, SIL Open Font License 1.1.
           </p>
           <pre>{OCTICONS_LICENSE}</pre>
+          <pre>{pixelFontLicense}</pre>
         </details>
       </section>
       {message && (
