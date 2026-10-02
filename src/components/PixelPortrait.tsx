@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { DEFAULT_PIXEL_SIZE, SAMPLE_SIZE, pixelResolution } from "../pixel";
+import {
+  DEFAULT_PIXEL_SIZE,
+  SAMPLE_SIZE,
+  pixelResolution,
+  outlinePixels,
+  type PixelMethod,
+} from "../pixel";
 
 export function PixelImage({
   src,
@@ -7,17 +13,20 @@ export function PixelImage({
   fit = "cover",
   className,
   alt,
+  method = "mosaic",
 }: {
   src: string;
   kernel?: number;
   fit?: "cover" | "contain";
   className?: string;
   alt: string;
+  method?: PixelMethod;
 }) {
   const [sampled, setSampled] = useState<{
     source: string;
     fit: string;
     canvas: HTMLCanvasElement;
+    rgba?: Uint8ClampedArray;
   } | null>(null);
   useEffect(() => {
     let active = true;
@@ -66,10 +75,16 @@ export function PixelImage({
             height,
           );
         }
-        if (active) setSampled({ source: src, fit, canvas });
+        const rgba = context.getImageData?.(
+          0,
+          0,
+          SAMPLE_SIZE,
+          SAMPLE_SIZE,
+        ).data;
+        if (active) setSampled({ source: src, fit, canvas, rgba });
       })
       .catch(() => {
-        /* Keep the source and grid overlay if rendering is unavailable. */
+        /* Keep the original source if rendering is unavailable. */
       });
     return () => {
       active = false;
@@ -85,35 +100,45 @@ export function PixelImage({
       if (!context) return src;
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = "high";
-      context.drawImage(
-        sampled.canvas,
-        0,
-        0,
-        SAMPLE_SIZE,
-        SAMPLE_SIZE,
-        0,
-        0,
-        pixels,
-        pixels,
-      );
+      if (method === "outline" && sampled.rgba) {
+        const image = context.createImageData(pixels, pixels);
+        image.data.set(
+          outlinePixels(sampled.rgba, SAMPLE_SIZE, SAMPLE_SIZE, pixels),
+        );
+        context.putImageData(image, 0, 0);
+      } else
+        context.drawImage(
+          sampled.canvas,
+          0,
+          0,
+          SAMPLE_SIZE,
+          SAMPLE_SIZE,
+          0,
+          0,
+          pixels,
+          pixels,
+        );
       return canvas.toDataURL("image/png");
     } catch {
       return src;
     }
-  }, [sampled, src, fit, pixels]);
+  }, [sampled, src, fit, pixels, method]);
   return <img className={className} src={rendered} alt={alt} />;
 }
 export function PixelPortrait({
   src,
   kernel = DEFAULT_PIXEL_SIZE,
+  method = "outline",
 }: {
   src: string;
   kernel?: number;
+  method?: PixelMethod;
 }) {
   return (
     <PixelImage
       src={src}
       kernel={kernel}
+      method={method}
       className="profile-picture"
       alt="Badge portrait"
     />

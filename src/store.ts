@@ -11,7 +11,7 @@ import {
 import type { LocationSample, Source } from "./location/types";
 import { browserProvider } from "./location/providers";
 import { rememberPlace, savedPlaces, workplaceFor } from "./location/geocode";
-import { DEFAULT_PIXEL_SIZE, pixelSize } from "./pixel";
+import { DEFAULT_PIXEL_SIZE, pixelSize, type PixelMethod } from "./pixel";
 export interface Settings {
   code: string;
   provider: "manual" | "real" | "simulation";
@@ -36,6 +36,7 @@ export interface Settings {
   doubleClickSwitch: boolean;
   colorsVersion: number;
   pixelSize: { avatar: number; logo: number };
+  pixelMethod: { avatar: PixelMethod; logo: PixelMethod };
   colors: {
     light: { background: string; card: string; accent: string };
     dark: { background: string; card: string; accent: string };
@@ -64,6 +65,7 @@ const defaults: Settings = {
   doubleClickSwitch: true,
   colorsVersion: 1,
   pixelSize: { avatar: DEFAULT_PIXEL_SIZE, logo: DEFAULT_PIXEL_SIZE },
+  pixelMethod: { avatar: "outline", logo: "mosaic" },
   colors: {
     light: { background: "#e7f4e9", card: "#ffffff", accent: "#23804c" },
     dark: { background: "#0b1b24", card: "#142c35", accent: "#75e5aa" },
@@ -147,6 +149,10 @@ function settings(): Settings {
     ...defaults,
     ...s,
     colorsVersion: 1,
+    pixelMethod: {
+      avatar: s.pixelMethod?.avatar === "mosaic" ? "mosaic" : "outline",
+      logo: s.pixelMethod?.logo === "outline" ? "outline" : "mosaic",
+    },
     pixelSize: {
       avatar: pixelSize(s.pixelSize?.avatar),
       logo: pixelSize(s.pixelSize?.logo),

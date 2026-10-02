@@ -7,6 +7,39 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
+it("applies the outline filter to the rendered portrait", async () => {
+  class DecodedImage {
+    src = "";
+    naturalWidth = 512;
+    naturalHeight = 512;
+    decode() {
+      return Promise.resolve();
+    }
+  }
+  vi.stubGlobal("Image", DecodedImage);
+  const rgba = new Uint8ClampedArray(512 * 512 * 4).fill(255);
+  const putImageData = vi.fn();
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+    drawImage: vi.fn(),
+    getImageData: () => ({ data: rgba }),
+    createImageData: (w: number, h: number) => ({
+      data: new Uint8ClampedArray(w * h * 4),
+    }),
+    putImageData,
+  } as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+    "data:image/png;base64,outline",
+  );
+  await act(async () => render(<PixelPortrait src="blob:photo" />));
+  expect(putImageData).toHaveBeenCalledWith(
+    expect.objectContaining({ data: expect.any(Uint8ClampedArray) }),
+    0,
+    0,
+  );
+  expect(
+    screen.getByRole("img", { name: "Badge portrait" }).getAttribute("src"),
+  ).toBe("data:image/png;base64,outline");
+});
 it("center-crops into a 512-square sample before applying the default 30-pixel kernel", async () => {
   class DecodedImage {
     src = "";

@@ -33,6 +33,38 @@ afterEach(() => {
 });
 const open = () =>
   fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
+it("defaults portraits to clear outlines and persists the optional plain-mosaic choice", () => {
+  render(<App />);
+  open();
+  expect(
+    (
+      screen.getByRole("combobox", {
+        name: "Profile photo rendering",
+      }) as HTMLSelectElement
+    ).value,
+  ).toBe("outline");
+  expect(
+    (
+      screen.getByRole("combobox", {
+        name: "Company logo rendering",
+      }) as HTMLSelectElement
+    ).value,
+  ).toBe("mosaic");
+  fireEvent.change(
+    screen.getByRole("combobox", { name: "Profile photo rendering" }),
+    { target: { value: "mosaic" } },
+  );
+  cleanup();
+  render(<App />);
+  open();
+  expect(
+    (
+      screen.getByRole("combobox", {
+        name: "Profile photo rendering",
+      }) as HTMLSelectElement
+    ).value,
+  ).toBe("mosaic");
+});
 it("provides independent live pixel sliders for portrait and logo, saves them and restores them", () => {
   render(<App />);
   open();
@@ -54,11 +86,6 @@ it("provides independent live pixel sliders for portrait and logo, saves them an
     logo: 16,
   });
   fireEvent.click(screen.getByRole("button", { name: "Return to badge" }));
-  expect(
-    (
-      document.querySelector(".portrait-frame") as HTMLElement
-    ).style.getPropertyValue("--portrait-pixels"),
-  ).toBe("64");
   cleanup();
   render(<App />);
   open();

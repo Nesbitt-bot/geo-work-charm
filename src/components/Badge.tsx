@@ -3,14 +3,12 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
-  type CSSProperties,
 } from "react";
 import type { Settings } from "../store";
 import type { Status } from "../core/geofence";
 import { DEFAULT_MEDIA, useBadgeImage } from "../media";
 import { OfficeScene } from "./OfficeScene";
 import { PixelImage, PixelPortrait } from "./PixelPortrait";
-import { pixelResolution } from "../pixel";
 
 export function Badge({
   config,
@@ -242,6 +240,7 @@ export function Badge({
         <header className="badge-header">
           <PixelImage
             kernel={config.pixelSize.logo}
+            method={config.pixelMethod.logo}
             fit="contain"
             className={
               config.profile.logo ? "company-logo" : "company-logo default-logo"
@@ -262,15 +261,12 @@ export function Badge({
         </header>
         {status !== "OFF_WORK" && (
           <div className="badge-person">
-            <div
-              className="portrait-frame"
-              style={
-                {
-                  "--portrait-pixels": pixelResolution(config.pixelSize.avatar),
-                } as CSSProperties
-              }
-            >
-              <PixelPortrait src={avatar} kernel={config.pixelSize.avatar} />
+            <div className="portrait-frame">
+              <PixelPortrait
+                src={avatar}
+                kernel={config.pixelSize.avatar}
+                method={config.pixelMethod.avatar}
+              />
             </div>
             <h1>{config.profile.name || "Trance-0"}</h1>
             <p className="job-title">

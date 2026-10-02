@@ -273,20 +273,6 @@ input::placeholder {
   border-radius: 0;
   display: block;
 }
-.portrait-frame::after,
-.image-preview.avatar::after {
-  content: "";
-  position: absolute;
-  inset: 8px;
-  pointer-events: none;
-  background-image:
-    linear-gradient(90deg, #17324b20 1px, transparent 1px),
-    linear-gradient(#17324b20 1px, transparent 1px);
-  background-size: calc(100% / var(--portrait-pixels, 18))
-    calc(100% / var(--portrait-pixels, 18));
-  mix-blend-mode: multiply;
-  opacity: clamp(0, calc((96 - var(--portrait-pixels, 18)) / 78), 1);
-}
 .office-scene {
   filter: saturate(1.45);
 }
@@ -670,8 +656,16 @@ input::placeholder {
   display: block;
   image-rendering: pixelated;
 }
-.image-preview.avatar::after {
-  inset: 0;
+.pixel-method {
+  display: block;
+  margin-top: 16px;
+  font-size: 12px;
+}
+.pixel-method select {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  font-size: 14px;
 }
 .media-editor {
   border-bottom: 1px solid var(--line);

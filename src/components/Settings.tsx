@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Workplace } from "../core/geofence";
 import { validCoordinate, metersFrom } from "../core/geofence";
 import type { Settings } from "../store";
@@ -24,7 +24,7 @@ import { MapView } from "./Map";
 import { simulatedSample } from "../geo/nearby";
 import pixelFontLicense from "../assets/fonts/OFL.txt?raw";
 import { PixelImage } from "./PixelPortrait";
-import { pixelResolution } from "../pixel";
+import { pixelResolution, type PixelMethod } from "../pixel";
 
 function ImageField({
   slot,
@@ -35,6 +35,8 @@ function ImageField({
   onError,
   kernel,
   onKernel,
+  method,
+  onMethod,
 }: {
   slot: MediaSlot;
   title: string;
@@ -44,6 +46,8 @@ function ImageField({
   onError: (message: string) => void;
   kernel?: number;
   onKernel?: (value: number) => void;
+  method?: PixelMethod;
+  onMethod?: (value: PixelMethod) => void;
 }) {
   const url = useBadgeImage(slot, revision, fallback);
   const saved = useRef(onSaved);
@@ -52,15 +56,11 @@ function ImageField({
     <div className="media-editor">
       <div className="image-field">
         {kernel !== undefined ? (
-          <div
-            className={`image-preview ${slot}`}
-            style={
-              { "--portrait-pixels": pixelResolution(kernel) } as CSSProperties
-            }
-          >
+          <div className={`image-preview ${slot}`}>
             <PixelImage
               src={url}
               kernel={kernel}
+              method={method}
               fit={slot === "logo" ? "contain" : "cover"}
               className={`pixel-preview ${slot === "avatar" ? "profile-picture" : "pixel-logo"}`}
               alt={`${title} preview`}
@@ -132,6 +132,19 @@ function ImageField({
             {pixelResolution(kernel)} × {pixelResolution(kernel)} px
           </span>
           <small className="pixel-help">Smaller size = more detail.</small>
+        </label>
+      )}
+      {method && onMethod && (
+        <label className="pixel-method">
+          Rendering
+          <select
+            aria-label={`${title} rendering`}
+            value={method}
+            onChange={(event) => onMethod(event.target.value as PixelMethod)}
+          >
+            <option value="outline">Clear outlines</option>
+            <option value="mosaic">Plain mosaic</option>
+          </select>
         </label>
       )}
     </div>
@@ -286,6 +299,10 @@ export function SettingsPage({
           onSaved={(revision) => media("avatar", revision)}
           onError={setMessage}
           kernel={config.pixelSize.avatar}
+          method={config.pixelMethod.avatar}
+          onMethod={(avatar) =>
+            update({ pixelMethod: { ...config.pixelMethod, avatar } })
+          }
           onKernel={(value) =>
             update({ pixelSize: { ...config.pixelSize, avatar: value } })
           }
@@ -298,6 +315,10 @@ export function SettingsPage({
           onSaved={(revision) => media("logo", revision)}
           onError={setMessage}
           kernel={config.pixelSize.logo}
+          method={config.pixelMethod.logo}
+          onMethod={(logo) =>
+            update({ pixelMethod: { ...config.pixelMethod, logo } })
+          }
           onKernel={(value) =>
             update({ pixelSize: { ...config.pixelSize, logo: value } })
           }
